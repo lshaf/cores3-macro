@@ -1,0 +1,7 @@
+# Keeps the screen awake. Stop with B.
+LOOP
+  MOUSE 15 0
+  DELAY 1s
+  MOUSE -15 0
+  DELAY 30s
+END

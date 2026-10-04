@@ -1,0 +1,9 @@
+# Win+R, start Notepad, type a few lines
+KEY gui+r
+DELAY 500
+STRINGLN notepad
+DELAY 1200
+TYPE_DELAY 20
+LOOP 3
+  STRINGLN Typed by Core Macro
+END

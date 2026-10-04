@@ -1,0 +1,2923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core Macro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #1B2129;
+  --surface: #222A34;
+  --editor: #12171D;
+  --hair: #2E3842;
+  --text: #E3E8EE;
+  --muted: #8B97A5;
+  --amber: #F2B544;
+  --amber-hover: #F7C565;
+  --green: #3FD47C;
+  --red: #F0565A;
+  --blue: #5AA9FF;
+  --d-bg: #0F1216;
+  --d-panel: #171C22;
+  --d-sel: #243244;
+  --d-hair: #242B33;
+  --d-text: #D6DCE4;
+  --d-bright: #FFFFFF;
+  --d-dim: #7A8694;
+  --d-unlit: #3A4451;
+  --d-amber: #F2B544;
+  --d-green: #3FD47C;
+  --d-green-tint: #10281B;
+  --d-red: #F0565A;
+  --d-red-tint: #2E1517;
+  --d-blue: #5AA9FF;
+  --d-keycap: #2C3542;
+  --font-ui: "Chivo", system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--bg); }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+[hidden] { display: none !important; }
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 500; }
+h1 { font-size: 28px; line-height: 1.2; }
+h2 { font-size: 20px; line-height: 1.3; }
+h3 { font-size: 13px; font-weight: 700; line-height: 1.4; }
+p { margin: 0; }
+code { font-family: var(--font-mono); font-size: 0.92em; }
+.mono { font-family: var(--font-mono); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pill i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--d-unlit);
+}
+
+.pill.on { color: var(--text); }
+.pill.on i { background: var(--green); }
+.pill.busy i { background: var(--amber); }
+
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+}
+
+.seg.off { opacity: 0.45; }
+
+.seg button {
+  height: 24px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.seg button:hover:not(:disabled) { color: var(--text); }
+.seg button:disabled { cursor: default; }
+
+.seg button.on {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.no-serial {
+  max-width: 44ch;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
+  grid-template-areas: "left editor right";
+  gap: 28px 24px;
+  align-items: start;
+  padding: 24px;
+}
+
+.col-left { grid-area: left; }
+.col-editor { grid-area: editor; }
+.col-right { grid-area: right; }
+
+.col-left, .col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.section-head h2 { flex: 1; }
+.section-head .count { font-size: 14px; color: var(--muted); font-weight: 400; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) { border-color: var(--muted); }
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #1B2129;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--amber-hover);
+  border-color: var(--amber-hover);
+}
+
+.btn-danger {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--red);
+  border-color: var(--red);
+  color: #FFFFFF;
+}
+
+.btn-sm {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.mirror-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: var(--d-bg);
+}
+
+.mirror-wrap.off .screen { opacity: 0.55; }
+
+.screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 320px;
+  height: 240px;
+  display: flex;
+  flex-direction: column;
+  transform-origin: 0 0;
+  transform: scale(var(--scale, 1));
+  background: var(--d-bg);
+  color: var(--d-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.d-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--d-panel);
+  border-bottom: 1px solid var(--d-hair);
+}
+
+.d-wordmark {
+  color: var(--d-amber);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.d-mode {
+  margin-left: 8px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--d-amber);
+  color: var(--d-bg);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.d-dots {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--d-dim);
+}
+
+.d-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.d-dot i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--d-unlit);
+}
+
+.d-dot.lit { color: var(--d-text); }
+.d-dot.pad.lit i { background: var(--d-amber); }
+.d-dot.web.lit i { background: var(--d-blue); }
+.d-dot.usb.lit i { background: var(--d-green); }
+
+.d-list {
+  flex: none;
+  height: 148px;
+  position: relative;
+}
+
+.d-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 37px;
+  padding: 0 8px 0 10px;
+  border-bottom: 1px solid var(--d-hair);
+}
+
+.d-row.sel { background: var(--d-sel); }
+
+.d-row.sel::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--d-amber);
+}
+
+.d-num {
+  width: 14px;
+  color: var(--d-dim);
+  font-size: 11px;
+  text-align: right;
+}
+
+.d-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+.d-row.sel .d-name { color: var(--d-bright); }
+
+.d-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 5px;
+  border-radius: 999px;
+  background: var(--d-green);
+  color: var(--d-bg);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.d-pill i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--d-bg);
+}
+
+.d-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 148px;
+  color: var(--d-dim);
+  font-size: 11px;
+}
+
+.d-brow {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px 0 10px;
+  border-bottom: 1px solid var(--d-hair);
+}
+
+.d-brow.pressed { background: var(--d-green-tint); }
+
+.d-blabel {
+  flex: none;
+  width: 60px;
+  color: var(--d-amber);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.d-bkeys {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--d-text);
+}
+
+.d-bkeys.unbound { color: var(--d-dim); }
+
+.d-bmode {
+  flex: none;
+  margin-left: 8px;
+  font-size: 10px;
+  color: var(--d-dim);
+  text-align: right;
+}
+
+.d-bmode.on { color: var(--d-green); }
+
+.d-status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 10px;
+  background: var(--d-panel);
+  border-top: 1px solid var(--d-hair);
+}
+
+.d-status.running { background: var(--d-green-tint); }
+.d-status.error { background: var(--d-red-tint); }
+
+.d-sdot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--d-green);
+}
+
+.d-stext { flex: 1; min-width: 0; }
+
+.d-s1 {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--d-text);
+}
+
+.d-status.running .d-s1,
+.d-status.finished .d-s1,
+.d-status.stopped .d-s1 { color: var(--d-bright); }
+.d-status.error .d-s1 { color: var(--d-red); }
+
+.d-s2 {
+  margin-top: 4px;
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  color: var(--d-dim);
+}
+
+.d-s2:empty { display: none; }
+
+.d-elapsed {
+  flex: none;
+  font-size: 11px;
+  color: var(--d-green);
+}
+
+.d-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 24px;
+  padding: 0 10px;
+  border-top: 1px solid var(--d-hair);
+  background: var(--d-bg);
+  font-size: 10px;
+  color: var(--d-dim);
+}
+
+.d-foot > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.d-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--d-keycap);
+  color: var(--d-text);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
+}
+
+.blink { animation: blink 1s step-end infinite; }
+
+.mirror-caption {
+  min-height: 20px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.scripts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--hair);
+}
+
+.script { border-bottom: 1px solid var(--hair); }
+
+.script-open {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 8px 8px 12px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.script-open:focus-visible { outline-offset: -2px; }
+.script.active .script-open { background: var(--surface); }
+.script.draft .script-open { cursor: default; }
+
+.script.selected .script-open::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--amber);
+}
+
+.script-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.script-size {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tag {
+  padding: 0 6px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--muted);
+}
+
+.run-dot, .dirty-dot {
+  display: none;
+  flex: none;
+  border-radius: 50%;
+}
+
+.run-dot { width: 8px; height: 8px; background: var(--green); }
+.dirty-dot { width: 7px; height: 7px; background: var(--amber); }
+.script.running .run-dot { display: inline-block; }
+.script.dirty .dirty-dot { display: inline-block; }
+
+.script-actions {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 8px 12px;
+  font-size: 13px;
+}
+
+.script.active .script-actions,
+.script.confirming .script-actions,
+.script:focus-within .script-actions { display: flex; }
+
+.script.active .script-actions { background: var(--surface); }
+
+.rename {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.rename-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: var(--editor);
+  font-size: 14px;
+}
+
+.rename-hint { font-size: 12px; color: var(--red); }
+.rename-actions { display: flex; gap: 6px; }
+
+.empty {
+  padding: 12px 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.device-info {
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.editor { min-width: 0; }
+
+.editor-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 40px 24px;
+  border: 1px dashed var(--hair);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editor-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.name-input {
+  flex: 1;
+  min-width: 160px;
+  padding: 4px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.name-input:hover { border-bottom-color: var(--hair); }
+.name-input:focus-visible { outline: none; border-bottom-color: var(--amber); }
+.name-input.invalid { border-bottom-color: var(--red); }
+
+.editor-dirty, .binds-dirty {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.size-readout {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.size-readout.over { color: var(--red); }
+
+.name-hint {
+  margin-top: -4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.name-hint.err { color: var(--red); }
+
+.code {
+  display: flex;
+  height: 60vh;
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: var(--editor);
+}
+
+.code:focus-within { border-color: var(--amber); }
+
+.gutter {
+  flex: none;
+  width: 48px;
+  padding: 12px 0;
+  overflow: hidden;
+  border-right: 1px solid var(--hair);
+  font: 13px/20px var(--font-mono);
+  color: var(--muted);
+  text-align: right;
+  user-select: none;
+}
+
+.gutter div {
+  height: 20px;
+  padding-right: 10px;
+}
+
+.gutter .live {
+  color: var(--amber);
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.gutter .err {
+  background: rgba(240, 86, 90, 0.18);
+  color: var(--red);
+  box-shadow: inset 3px 0 0 var(--red);
+}
+
+.src {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font: 13px/20px var(--font-mono);
+  white-space: pre;
+  overflow: auto;
+  tab-size: 2;
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.status-line.ok { color: var(--green); }
+
+.status-err {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--red);
+  font-size: 13px;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.editor-actions, .confirm-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.editor-actions .spacer { flex: 1; }
+.shortcuts { font-size: 12px; color: var(--muted); }
+.confirm-strip { font-size: 13px; }
+
+.ref-toggle { display: none; }
+
+.ref-intro {
+  max-width: 60ch;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.ref-group { margin-top: 16px; }
+
+.ref-list { margin: 0; }
+
+.ref-list dt {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.ref-list dd {
+  margin: 2px 0 0;
+  max-width: 60ch;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.keys {
+  max-width: 60ch;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.keys code { color: var(--text); }
+
+.example {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+}
+
+.example-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.example-head span { flex: 1; font-size: 13px; }
+
+.example pre {
+  margin: 6px 0 0;
+  overflow-x: auto;
+  font: 12px/1.5 var(--font-mono);
+  color: var(--muted);
+  white-space: pre;
+}
+
+.binds, .settings {
+  padding-top: 20px;
+  border-top: 1px solid var(--hair);
+}
+
+.saved-note { font-size: 12px; color: var(--green); }
+
+.bind-rows { border-top: 1px solid var(--hair); }
+
+.bind-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 84px;
+  gap: 6px 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.bind-label { font-size: 13px; }
+.bind-row.pressed .bind-label { color: var(--green); }
+
+.bind-keys {
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: var(--editor);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.bind-keys::placeholder { color: var(--muted); }
+
+select {
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: var(--editor);
+  font-size: 13px;
+}
+
+select:disabled { opacity: 0.5; }
+
+.bind-interval {
+  grid-column: 2 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bind-error {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--red);
+}
+
+.bind-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.bind-hint a {
+  color: var(--text);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.unit { font-size: 13px; color: var(--muted); }
+
+input[type="number"] {
+  width: 92px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: var(--editor);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--amber);
+}
+
+input:disabled { opacity: 0.5; }
+
+.toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--muted);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+  animation: toast-in 0.18s ease-out;
+}
+
+.toast-success { border-left-color: var(--green); }
+.toast-error { border-left-color: var(--red); }
+.toast span { flex: 1; }
+
+.toast button {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toast button:hover { color: var(--text); }
+
+@keyframes toast-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.dialog {
+  width: calc(100vw - 32px);
+  max-width: 440px;
+  padding: 20px;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+.dialog h2 { margin-bottom: 8px; }
+.dialog p { font-size: 14px; color: var(--muted); }
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+@media (max-width: 1099px) {
+  .layout {
+    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-areas:
+      "left editor"
+      "left right";
+  }
+  .ref-toggle { display: inline-flex; }
+  .ref:not(.open) .ref-body { display: none; }
+}
+
+@media (max-width: 719px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "left"
+      "editor"
+      "right";
+    gap: 24px;
+    padding: 16px;
+  }
+  .topbar { padding: 12px 16px; }
+  .code { height: 50vh; min-height: 260px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink { animation: none; }
+  .toast { animation: none; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>Core Macro</h1>
+  <span class="pill" id="connPill"><i aria-hidden="true"></i><span id="connText">Not connected</span></span>
+  <div class="seg off" id="modeSeg" role="group" aria-label="Device mode">
+    <button type="button" id="modeMacro" aria-pressed="false" disabled>Macros</button>
+    <button type="button" id="modeBind" aria-pressed="false" disabled>Bindings</button>
+  </div>
+  <div class="topbar-right">
+    <button type="button" class="btn btn-primary" id="connectBtn">Connect</button>
+    <p class="no-serial" id="noSerial" hidden>Connecting needs the Web Serial API. Open this page in Chrome or Edge on a desktop computer.</p>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="col-left">
+    <section aria-label="Device">
+      <div class="mirror-wrap off" id="mirrorWrap">
+        <div class="screen" id="screen" aria-hidden="true">
+          <div class="d-top">
+            <span class="d-wordmark">CORE MACRO</span>
+            <span class="d-mode" id="dMode" hidden>BIND</span>
+            <span class="d-dots">
+              <span class="d-dot pad" id="dotPad"><i></i>PAD</span>
+              <span class="d-dot web" id="dotWeb"><i></i>WEB</span>
+              <span class="d-dot usb" id="dotUsb"><i></i>USB</span>
+            </span>
+          </div>
+          <div class="d-list" id="dList">
+            <div class="d-row" hidden><span class="d-num"></span><span class="d-name"></span><span class="d-pill" hidden><i class="blink"></i>RUN</span></div>
+            <div class="d-row" hidden><span class="d-num"></span><span class="d-name"></span><span class="d-pill" hidden><i class="blink"></i>RUN</span></div>
+            <div class="d-row" hidden><span class="d-num"></span><span class="d-name"></span><span class="d-pill" hidden><i class="blink"></i>RUN</span></div>
+            <div class="d-row" hidden><span class="d-num"></span><span class="d-name"></span><span class="d-pill" hidden><i class="blink"></i>RUN</span></div>
+            <div class="d-empty" id="dEmpty" hidden>No macros yet</div>
+            <div id="dBind" hidden>
+              <div class="d-brow"><span class="d-blabel">UP</span><span class="d-bkeys"></span><span class="d-bmode"></span></div>
+              <div class="d-brow"><span class="d-blabel">DOWN</span><span class="d-bkeys"></span><span class="d-bmode"></span></div>
+              <div class="d-brow"><span class="d-blabel">LEFT</span><span class="d-bkeys"></span><span class="d-bmode"></span></div>
+              <div class="d-brow"><span class="d-blabel">RIGHT</span><span class="d-bkeys"></span><span class="d-bmode"></span></div>
+              <div class="d-brow"><span class="d-blabel">A</span><span class="d-bkeys"></span><span class="d-bmode"></span></div>
+              <div class="d-brow"><span class="d-blabel">B</span><span class="d-bkeys"></span><span class="d-bmode"></span></div>
+            </div>
+          </div>
+          <div class="d-status idle" id="dStatus">
+            <i class="d-sdot blink" id="dSdot" hidden></i>
+            <div class="d-stext">
+              <div class="d-s1" id="dS1">Pick a macro, press A to run it</div>
+              <div class="d-s2" id="dS2"></div>
+            </div>
+            <span class="d-elapsed" id="dElapsed"></span>
+          </div>
+          <div class="d-foot">
+            <span id="footRun"><span class="d-key">A</span>run</span>
+            <span id="footStop"><span class="d-key">B</span>stop</span>
+            <span id="footPick"><span class="d-key">↕</span>pick</span>
+            <span id="footSetup" hidden><span class="d-key">START</span>setup</span>
+            <span><span class="d-key">SEL</span><span id="footSelText">bind</span></span>
+          </div>
+        </div>
+      </div>
+      <p class="mirror-caption" id="caption">Not connected</p>
+    </section>
+
+    <section aria-labelledby="macrosTitle">
+      <div class="section-head">
+        <h2 id="macrosTitle">Macros <span class="count" id="scriptCount"></span></h2>
+        <button type="button" class="btn btn-sm" id="newBtn">New macro</button>
+      </div>
+      <ul class="scripts" id="scriptList"></ul>
+      <p class="empty" id="scriptsOffline">Connect the device to see its macros.</p>
+      <p class="empty" id="scriptsEmpty" hidden>No macros on the device yet. Create one.</p>
+      <p class="device-info" id="deviceInfo"></p>
+    </section>
+  </aside>
+
+  <section class="col-editor editor" aria-label="Editor">
+    <div class="editor-empty" id="editorEmpty">
+      <p>Pick a macro from the list, or start a new one.</p>
+      <button type="button" class="btn btn-primary" id="newBtnEmpty">New macro</button>
+    </div>
+    <div class="editor-body" id="editorBody" hidden>
+      <div class="editor-head">
+        <label class="sr-only" for="nameInput">Macro name</label>
+        <input class="name-input" id="nameInput" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Macro name">
+        <span class="editor-dirty" id="editorDirty" title="Unsaved changes" hidden></span>
+        <span class="size-readout" id="sizeReadout"></span>
+      </div>
+      <p class="name-hint" id="nameHint" hidden></p>
+      <div class="code">
+        <div class="gutter" id="gutter" aria-hidden="true"></div>
+        <label class="sr-only" for="src">Macro script</label>
+        <textarea class="src" id="src" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      </div>
+      <div class="status-line" id="statusLine" aria-live="polite"></div>
+      <div class="editor-actions" id="editorActions">
+        <button type="button" class="btn btn-primary" id="saveBtn">Save to device</button>
+        <button type="button" class="btn" id="runBtn">Run</button>
+        <button type="button" class="btn" id="stopBtn">Stop</button>
+        <span class="shortcuts" id="shortcuts"></span>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-danger" id="deleteBtn">Delete</button>
+      </div>
+      <div class="confirm-strip" id="confirmStrip" hidden>
+        <span id="confirmText"></span>
+        <button type="button" class="btn btn-danger" id="confirmYes">Delete</button>
+        <button type="button" class="btn" id="confirmNo">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="col-right">
+    <section class="ref" id="ref" aria-labelledby="refTitle">
+      <div class="section-head">
+        <h2 id="refTitle">Reference</h2>
+        <button type="button" class="btn btn-sm ref-toggle" id="refToggle" aria-expanded="false" aria-controls="refBody">Show</button>
+      </div>
+      <div class="ref-body" id="refBody">
+        <p class="ref-intro">One command per line. Commands are case-insensitive. Lines starting with <code>#</code>, <code>&#47;&#47;</code> or <code>REM</code> are comments.</p>
+
+        <div class="ref-group">
+          <h3>Examples</h3>
+          <div id="examples"></div>
+        </div>
+
+        <div class="ref-group">
+          <h3>Timing</h3>
+          <dl class="ref-list">
+            <dt>DELAY 500</dt>
+            <dd>Wait. Milliseconds by default; <code>250ms</code> and <code>1.5s</code> also work. Aliases SLEEP, WAIT.</dd>
+            <dt>DEFAULT_DELAY 100</dt>
+            <dd>Delay added after every command.</dd>
+            <dt>TYPE_DELAY 20</dt>
+            <dd>Delay between typed characters for later STRING lines. Default 0.</dd>
+          </dl>
+        </div>
+
+        <div class="ref-group">
+          <h3>Typing</h3>
+          <dl class="ref-list">
+            <dt>STRING hello world</dt>
+            <dd>Type the rest of the line exactly. Alias TYPE.</dd>
+            <dt>STRINGLN hello world</dt>
+            <dd>Type the text, then press Enter. Alias TYPELN.</dd>
+          </dl>
+        </div>
+
+        <div class="ref-group">
+          <h3>Keys</h3>
+          <dl class="ref-list">
+            <dt>KEY ctrl+c</dt>
+            <dd>Press and release a combo. Join keys with <code>+</code> or spaces: <code>KEY gui r</code>, <code>KEY alt+f4</code>, <code>KEY f5</code>. Aliases TAP, PRESS.</dd>
+            <dt>ENTER</dt>
+            <dd>A line that is just a combo also works, like <code>CTRL+SHIFT+T</code>.</dd>
+            <dt>HOLD shift</dt>
+            <dd>Press and keep held.</dd>
+            <dt>RELEASE shift</dt>
+            <dd>Release those keys. <code>RELEASE</code> alone releases everything. Everything is released when the macro ends or stops.</dd>
+          </dl>
+        </div>
+
+        <div class="ref-group">
+          <h3>Loops</h3>
+          <dl class="ref-list">
+            <dt>LOOP 5 … END</dt>
+            <dd>Repeat the block 5 times. Loops nest. <code>LOOP 0</code> skips the block.</dd>
+            <dt>LOOP forever</dt>
+            <dd>Repeat until B or Stop. Same as <code>LOOP</code> with no number. Aliases REPEAT, ENDLOOP, DONE.</dd>
+          </dl>
+        </div>
+
+        <div class="ref-group">
+          <h3>Mouse</h3>
+          <dl class="ref-list">
+            <dt>CLICK right</dt>
+            <dd>Click left (default), right or middle.</dd>
+            <dt>MOUSE_PRESS left</dt>
+            <dd>Hold a mouse button. <code>MOUSE_RELEASE left</code> lets it go.</dd>
+            <dt>MOUSE 10 -5</dt>
+            <dd>Move the pointer relative to where it is, in pixels.</dd>
+            <dt>SCROLL -3</dt>
+            <dd>Wheel. Negative scrolls down.</dd>
+          </dl>
+        </div>
+
+        <div class="ref-group">
+          <h3>Media</h3>
+          <dl class="ref-list">
+            <dt>MEDIA playpause</dt>
+            <dd>play, pause, playpause, next, prev, stop, mute, volup, voldown, brightnessup, brightnessdown, eject, calculator, email, browser, home, back, forward, refresh, search, sleep.</dd>
+          </dl>
+        </div>
+
+        <div class="ref-group">
+          <h3 id="keyNames">Key names</h3>
+          <p class="keys">
+            <code>ctrl</code> <code>shift</code> <code>alt</code> <code>gui</code> (also win, cmd, meta, super) <code>rctrl</code> <code>rshift</code> <code>ralt</code> <code>rgui</code> <code>altgr</code>
+            <code>enter</code> <code>esc</code> <code>tab</code> <code>space</code> <code>backspace</code> <code>delete</code> <code>insert</code> <code>home</code> <code>end</code> <code>pageup</code> <code>pagedown</code> <code>up</code> <code>down</code> <code>left</code> <code>right</code> <code>f1</code> to <code>f24</code>
+            <code>capslock</code> <code>printscreen</code> <code>scrolllock</code> <code>pause</code> <code>numlock</code> <code>menu</code> <code>kp0</code> to <code>kp9</code> <code>kpenter</code> <code>kpplus</code> <code>kpminus</code> <code>kpasterisk</code> <code>kpslash</code> <code>kpdot</code>
+            <code>minus</code> <code>equal</code> <code>lbracket</code> <code>rbracket</code> <code>backslash</code> <code>semicolon</code> <code>quote</code> <code>grave</code> <code>comma</code> <code>period</code> <code>slash</code>,
+            any single letter or digit, or one of <code>- = [ ] \ ; ' ` , . /</code>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="binds" aria-labelledby="bindsTitle">
+      <div class="section-head">
+        <h2 id="bindsTitle">Bindings</h2>
+        <span class="binds-dirty" id="bindsDirty" title="Unsaved changes" hidden></span>
+        <span class="saved-note" id="bindsSaved" hidden>Saved</span>
+        <button type="button" class="btn btn-sm btn-primary" id="saveBindsBtn" disabled>Save bindings</button>
+      </div>
+      <div class="bind-rows" id="bindRows"></div>
+      <p class="bind-error" id="bindError" hidden></p>
+      <p class="bind-hint">Press Select on the device to switch between macros and bindings. Combos use the same syntax as <code>KEY</code>, see <a href="#keyNames" id="keyNamesLink">Key names</a>.</p>
+    </section>
+
+    <section class="settings" aria-labelledby="settingsTitle">
+      <div class="section-head">
+        <h2 id="settingsTitle">Settings</h2>
+        <span class="saved-note" id="settingsSaved" hidden>Saved</span>
+      </div>
+      <div class="field">
+        <label for="timeoutInput">Screen off after</label>
+        <div class="field-row">
+          <input type="number" id="timeoutInput" min="0" max="3600" step="1" value="30" disabled>
+          <span class="unit">seconds, 0 keeps it on</span>
+        </div>
+      </div>
+      <div class="field">
+        <label for="brightnessInput">Brightness <span class="mono" id="brightnessValue">128</span></label>
+        <input type="range" id="brightnessInput" min="5" max="255" step="1" value="128" disabled>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<dialog class="dialog" id="unsavedDialog" aria-labelledby="unsavedTitle">
+  <form method="dialog">
+    <h2 id="unsavedTitle">Unsaved changes</h2>
+    <p id="unsavedText"></p>
+    <div class="dialog-actions">
+      <button type="submit" class="btn" value="cancel">Keep editing</button>
+      <button type="submit" class="btn btn-danger" value="discard">Discard changes</button>
+      <button type="submit" class="btn btn-primary" value="save" id="unsavedSave">Save to device</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const SERIAL_SUPPORTED = 'serial' in navigator;
+const BAUD_RATE = 115200;
+const WRITE_CHUNK = 1024;
+const WRITE_PAUSE_MS = 5;
+const REQUEST_TIMEOUT_MS = 5000;
+const TRANSFER_TIMEOUT_MS = 15000;
+const CHECK_DEBOUNCE_MS = 400;
+const CONTENT_LIMIT = 24 * 1024;
+const MIRROR_ROWS = 4;
+const SCREEN_WIDTH = 320;
+const STORAGE_KEY = 'core-macro.last-open';
+const TIMEOUT_MESSAGE = 'Device did not answer. Check the cable and reconnect.';
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD_KEY = IS_MAC ? 'Cmd' : 'Ctrl';
+const RUN_FIELDS = ['state', 'script', 'line', 'total', 'loop', 'loopCount', 'loopDepth', 'elapsed', 'error'];
+const NAME_CHARS = /^[A-Za-z0-9 _\-.()]+$/;
+const NAME_RULE = '1 to 32 characters: letters, digits, spaces and _ - . ( ). No leading dot or space, no trailing space.';
+const BIND_BUTTONS = ['up', 'down', 'left', 'right', 'a', 'b'];
+const BIND_LABELS = { up: 'Up', down: 'Down', left: 'Left', right: 'Right', a: 'A', b: 'B' };
+const BIND_MASKS = { up: 1, down: 2, left: 4, right: 8, a: 16, b: 32 };
+const BIND_MODES = [['normal', 'Hold'], ['burst', 'Burst'], ['toggle', 'Toggle']];
+const BIND_WORDS = { normal: 'hold', burst: 'burst', toggle: 'toggle' };
+const INTERVAL_MIN = 20;
+const INTERVAL_MAX = 5000;
+const INTERVAL_DEFAULT = 100;
+const BIND_HINT = 'Switch to macros to run';
+
+const EXAMPLES = [
+  {
+    title: 'Open terminal and run a command',
+    name: 'Open terminal',
+    lines: [
+      '# Open a command prompt and run a command',
+      'KEY gui+r',
+      'DELAY 500',
+      'STRINGLN cmd',
+      'DELAY 1s',
+      'STRINGLN echo Hello from Core Macro'
+    ]
+  },
+  {
+    title: 'Spam Enter every 2 s forever',
+    name: 'Spam Enter',
+    lines: [
+      '# Press Enter every 2 seconds until you press B',
+      'LOOP forever',
+      '  ENTER',
+      '  DELAY 2s',
+      'END'
+    ]
+  },
+  {
+    title: 'Alt-tab and type a message 5 times',
+    name: 'Alt-tab message',
+    lines: [
+      '# Switch window and type a message, 5 times',
+      'LOOP 5',
+      '  KEY alt+tab',
+      '  DELAY 300',
+      '  TYPE_DELAY 10',
+      '  STRINGLN Hello from Core Macro',
+      '  DELAY 1s',
+      'END'
+    ]
+  }
+];
+
+const els = {};
+for (const node of document.querySelectorAll('[id]')) els[node.id] = node;
+
+const mirrorRows = Array.from(els.dList.querySelectorAll('.d-row')).map(row => ({
+  row,
+  num: row.querySelector('.d-num'),
+  name: row.querySelector('.d-name'),
+  pill: row.querySelector('.d-pill')
+}));
+
+const bindMirrorRows = Array.from(els.dBind.querySelectorAll('.d-brow')).map(row => ({
+  row,
+  keys: row.querySelector('.d-bkeys'),
+  mode: row.querySelector('.d-bmode')
+}));
+
+const bindRows = [];
+
+const state = {
+  connected: false,
+  connecting: false,
+  busy: 0,
+  device: { name: '', fw: '', usb: false, gamepad: false },
+  info: null,
+  config: { screenTimeout: 30, brightness: 128 },
+  scripts: [],
+  selected: '',
+  run: { state: 'idle', script: '', line: 0, total: 0, loop: 0, loopCount: 0, loopDepth: 0, elapsed: 0, error: '' },
+  open: null,
+  check: { valid: null, error: '', line: 0 },
+  renaming: null,
+  renameError: '',
+  confirmDelete: null,
+  mirrorTop: 0,
+  refOpen: false,
+  mode: 'macro',
+  binds: null,
+  bindDraft: null,
+  pad: null,
+  bindError: ''
+};
+
+const serial = {
+  port: null,
+  writer: null,
+  reader: null,
+  readableClosed: null,
+  nextId: 1,
+  queue: [],
+  pending: null,
+  closing: false
+};
+
+let gutterCount = -1;
+let gutterErrLine = 0;
+let gutterLiveLine = 0;
+let checkTimer = 0;
+let checkSeq = 0;
+let lastCheckedContent = null;
+let savedNoteTimer = 0;
+let bindsSavedTimer = 0;
+let bindSaving = false;
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function button(label, className, onClick) {
+  const node = el('button', className, label);
+  node.type = 'button';
+  node.addEventListener('click', onClick);
+  return node;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function messageFor(err) {
+  return err && err.message ? err.message : String(err);
+}
+
+function byteLength(text) {
+  return new TextEncoder().encode(text).length;
+}
+
+function formatBytes(n) {
+  if (!(n >= 0)) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function formatElapsed(ms) {
+  const total = Math.floor((ms || 0) / 1000);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+}
+
+function nameTaken(name, ignore) {
+  return state.scripts.some(s => s.name === name && s.name !== ignore);
+}
+
+function nameProblem(name, ignore) {
+  if (!name) return 'Give the macro a name.';
+  if (name.length > 32) return 'Names are 32 characters at most.';
+  if (!NAME_CHARS.test(name)) return 'Only letters, digits, spaces and _ - . ( ) are allowed.';
+  if (name[0] === '.' || name[0] === ' ') return 'A name cannot start with a dot or a space.';
+  if (name.endsWith(' ')) return 'A name cannot end with a space.';
+  if (nameTaken(name, ignore)) return 'Another macro already has this name.';
+  return '';
+}
+
+function suggestDraftName() {
+  let i = 1;
+  while (nameTaken('Macro ' + i)) i++;
+  return 'Macro ' + i;
+}
+
+function uniqueName(base) {
+  let name = base;
+  let i = 2;
+  while (nameTaken(name)) name = base + ' ' + i++;
+  return name;
+}
+
+function isDirty() {
+  const o = state.open;
+  if (!o) return false;
+  if (o.isNew) return o.content.trim() !== '';
+  return o.content !== o.savedContent;
+}
+
+function isOpenRunning() {
+  const o = state.open;
+  return state.connected && state.run.state === 'running' && !!o && !o.isNew && state.run.script === o.originalName;
+}
+
+function openProblem() {
+  const o = state.open;
+  return o ? nameProblem(o.name, o.isNew ? '' : o.originalName) : '';
+}
+
+function rememberOpen(name) {
+  try {
+    localStorage.setItem(STORAGE_KEY, name);
+  } catch (err) {}
+}
+
+function forgetOpen() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (err) {}
+}
+
+function lastOpenName() {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function toast(message, kind) {
+  const node = el('div', 'toast toast-' + (kind || 'info'));
+  node.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+  node.appendChild(el('span', '', message));
+  const close = button('×', '', () => node.remove());
+  close.setAttribute('aria-label', 'Dismiss');
+  node.appendChild(close);
+  els.toasts.appendChild(node);
+  setTimeout(() => node.remove(), kind === 'error' ? 7000 : 4000);
+}
+
+function setBusy(delta) {
+  state.busy = Math.max(0, state.busy + delta);
+  renderEditorActions();
+}
+
+async function writeText(text) {
+  const bytes = new TextEncoder().encode(text);
+  for (let offset = 0; offset < bytes.length; offset += WRITE_CHUNK) {
+    await serial.writer.write(bytes.subarray(offset, offset + WRITE_CHUNK));
+    if (offset + WRITE_CHUNK < bytes.length) await sleep(WRITE_PAUSE_MS);
+  }
+}
+
+function request(cmd, fields) {
+  return new Promise((resolve, reject) => {
+    if (!state.connected) {
+      reject(new Error('Not connected.'));
+      return;
+    }
+    serial.queue.push({ cmd, fields: fields || {}, resolve, reject });
+    pump();
+  });
+}
+
+async function pump() {
+  if (serial.pending || serial.queue.length === 0) return;
+  const job = serial.queue.shift();
+  const id = serial.nextId++;
+  const timeoutMs = job.cmd === 'put' || job.cmd === 'get' ? TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+  serial.pending = { id, cmd: job.cmd, resolve: job.resolve, reject: job.reject, timer: 0 };
+  serial.pending.timer = setTimeout(() => finishPending(null, new Error(TIMEOUT_MESSAGE)), timeoutMs);
+  try {
+    await writeText(JSON.stringify(Object.assign({ id, cmd: job.cmd }, job.fields)) + '\n');
+  } catch (err) {
+    if (serial.pending && serial.pending.id === id) {
+      finishPending(null, new Error('Could not send to the device. Reconnect and try again.'));
+    }
+  }
+}
+
+function finishPending(reply, err) {
+  const pending = serial.pending;
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  serial.pending = null;
+  if (err) pending.reject(err);
+  else pending.resolve(reply);
+  pump();
+}
+
+function failAllRequests(err) {
+  const queued = serial.queue.splice(0, serial.queue.length);
+  if (serial.pending) finishPending(null, err);
+  for (const job of queued) job.reject(err);
+}
+
+function handleLine(line) {
+  let msg;
+  try {
+    msg = JSON.parse(line);
+  } catch (err) {
+    return;
+  }
+  if (!msg || typeof msg !== 'object') return;
+  if (typeof msg.id === 'number') {
+    const pending = serial.pending;
+    if (pending && pending.id === msg.id) {
+      if (msg.ok === false) finishPending(null, new Error(msg.error || 'The device refused the request.'));
+      else finishPending(msg);
+    }
+    return;
+  }
+  if (msg.type === 'state') {
+    applyState(msg);
+  } else if (msg.type === 'selected') {
+    state.selected = typeof msg.name === 'string' ? msg.name : '';
+    ensureSelectedVisible();
+    renderMirror();
+    updateScriptMarks();
+  } else if (msg.type === 'mode') {
+    setModeState(msg.mode);
+    renderMode();
+  } else if (msg.type === 'pad') {
+    state.pad = { pressed: msg.pressed | 0, toggled: msg.toggled | 0 };
+    renderMirror();
+    renderBindMarks();
+  } else if (msg.type === 'binds') {
+    const wasDirty = state.bindDraft && state.binds && bindsDirty();
+    state.binds = normalizeBinds(msg.binds);
+    if (!wasDirty) state.bindDraft = cloneBinds(state.binds);
+    if (typeof msg.mode === 'string') setModeState(msg.mode);
+    renderBinds();
+    renderMode();
+    toast('Bindings changed on the device', 'info');
+  }
+}
+
+async function readLoop() {
+  const decoder = new TextDecoderStream();
+  serial.readableClosed = serial.port.readable.pipeTo(decoder.writable).catch(() => {});
+  serial.reader = decoder.readable.getReader();
+  let buffer = '';
+  try {
+    while (true) {
+      const { value, done } = await serial.reader.read();
+      if (done) break;
+      buffer += value;
+      let newline;
+      while ((newline = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+        if (line) handleLine(line);
+      }
+    }
+  } catch (err) {}
+  if (!serial.closing) disconnect('lost');
+}
+
+async function connect() {
+  if (!SERIAL_SUPPORTED || state.connected || state.connecting) return;
+  let port;
+  try {
+    port = await navigator.serial.requestPort();
+  } catch (err) {
+    return;
+  }
+  state.connecting = true;
+  renderTopbar();
+  try {
+    await port.open({ baudRate: BAUD_RATE });
+  } catch (err) {
+    state.connecting = false;
+    renderTopbar();
+    toast('Could not open the port. Close other programs that use it and try again.', 'error');
+    return;
+  }
+  serial.port = port;
+  try {
+    await port.setSignals({ dataTerminalReady: true, requestToSend: true });
+  } catch (err) {}
+  serial.writer = port.writable.getWriter();
+  serial.nextId = 1;
+  state.connected = true;
+  readLoop();
+  try {
+    const hello = await request('ping');
+    state.device.name = typeof hello.device === 'string' ? hello.device : '';
+    state.device.fw = typeof hello.fw === 'string' ? hello.fw : '';
+    applyState(hello);
+    await refreshList();
+    await loadConfig();
+    await loadInfo();
+    await loadBinds();
+    state.connecting = false;
+    renderAll();
+    toast('Connected to ' + (state.device.name || 'the device') + (state.device.fw ? ', firmware ' + state.device.fw : '') + '.', 'success');
+    restoreLastOpen();
+  } catch (err) {
+    state.connecting = false;
+    toast(messageFor(err), 'error');
+    await disconnect('failed');
+  }
+}
+
+async function disconnect(reason) {
+  const port = serial.port;
+  if (!port || serial.closing) return;
+  serial.closing = true;
+  state.connected = false;
+  state.connecting = false;
+  failAllRequests(new Error('Device disconnected.'));
+  try {
+    if (serial.reader) await serial.reader.cancel();
+  } catch (err) {}
+  try {
+    if (serial.readableClosed) await serial.readableClosed;
+  } catch (err) {}
+  try {
+    if (serial.writer) serial.writer.releaseLock();
+  } catch (err) {}
+  try {
+    await port.close();
+  } catch (err) {}
+  serial.port = null;
+  serial.reader = null;
+  serial.writer = null;
+  serial.readableClosed = null;
+  serial.closing = false;
+  resetDeviceState();
+  renderAll();
+  if (reason === 'lost') toast('Device disconnected. Plug it back in and press Connect.', 'error');
+  else if (reason === 'user') toast('Disconnected.', 'info');
+}
+
+function resetDeviceState() {
+  state.device = { name: '', fw: '', usb: false, gamepad: false };
+  state.info = null;
+  state.scripts = [];
+  state.selected = '';
+  state.run = { state: 'idle', script: '', line: 0, total: 0, loop: 0, loopCount: 0, loopDepth: 0, elapsed: 0, error: '' };
+  state.check = { valid: null, error: '', line: 0 };
+  state.renaming = null;
+  state.renameError = '';
+  state.confirmDelete = null;
+  state.mirrorTop = 0;
+  state.mode = 'macro';
+  state.binds = null;
+  state.bindDraft = null;
+  state.pad = null;
+  state.bindError = '';
+  lastCheckedContent = null;
+}
+
+function applyState(msg) {
+  const previous = state.run.state;
+  const modeBefore = state.mode;
+  for (const key of RUN_FIELDS) {
+    if (key in msg) state.run[key] = msg[key];
+  }
+  if ('usb' in msg) state.device.usb = !!msg.usb;
+  if ('gamepad' in msg) state.device.gamepad = !!msg.gamepad;
+  if ('mode' in msg) setModeState(msg.mode);
+  if (state.mode !== modeBefore) {
+    renderTopbar();
+    renderBinds();
+  }
+  const run = state.run;
+  if (run.state === 'error' && previous !== 'error' && run.script) {
+    toast('Error in ' + run.script + ' at line ' + run.line + ': ' + run.error, 'error');
+  }
+  if (run.state === 'error' && isOpenScript(run.script) && run.error) {
+    state.check = { valid: false, error: run.error, line: run.line || 0 };
+    renderStatusLine();
+  }
+  renderMirror();
+  updateScriptMarks();
+  renderGutter();
+  renderEditorActions();
+}
+
+function isOpenScript(name) {
+  const o = state.open;
+  return !!o && !o.isNew && o.originalName === name;
+}
+
+async function refreshList() {
+  const reply = await request('list');
+  state.scripts = Array.isArray(reply.scripts) ? reply.scripts.filter(s => s && typeof s.name === 'string') : [];
+  if (typeof reply.selected === 'string') state.selected = reply.selected;
+  ensureSelectedVisible();
+  renderScripts();
+  renderMirror();
+  renderInfo();
+  renderNameHint();
+  renderEditorActions();
+}
+
+async function loadConfig() {
+  try {
+    const reply = await request('config');
+    if (typeof reply.screenTimeout === 'number') state.config.screenTimeout = reply.screenTimeout;
+    if (typeof reply.brightness === 'number') state.config.brightness = reply.brightness;
+  } catch (err) {
+    toast('Could not read the device settings: ' + messageFor(err), 'error');
+  }
+  renderSettings();
+}
+
+async function loadInfo() {
+  try {
+    state.info = await request('info');
+  } catch (err) {
+    state.info = null;
+  }
+  renderInfo();
+}
+
+async function applyConfig(set) {
+  try {
+    const reply = await request('config', { set });
+    if (typeof reply.screenTimeout === 'number') state.config.screenTimeout = reply.screenTimeout;
+    if (typeof reply.brightness === 'number') state.config.brightness = reply.brightness;
+    showSavedNote();
+  } catch (err) {
+    toast('Could not change the setting: ' + messageFor(err), 'error');
+  }
+  renderSettings();
+}
+
+function showSavedNote() {
+  els.settingsSaved.hidden = false;
+  clearTimeout(savedNoteTimer);
+  savedNoteTimer = setTimeout(() => { els.settingsSaved.hidden = true; }, 2000);
+}
+
+function showBindsSaved() {
+  els.bindsSaved.hidden = false;
+  clearTimeout(bindsSavedTimer);
+  bindsSavedTimer = setTimeout(() => { els.bindsSaved.hidden = true; }, 2000);
+}
+
+function defaultBinds() {
+  return BIND_BUTTONS.map(button => ({ button, keys: '', mode: 'normal', interval: INTERVAL_DEFAULT }));
+}
+
+function normalizeBinds(list) {
+  const byButton = {};
+  if (Array.isArray(list)) {
+    for (const b of list) if (b && typeof b.button === 'string') byButton[b.button] = b;
+  }
+  return BIND_BUTTONS.map(button => {
+    const b = byButton[button] || {};
+    return {
+      button,
+      keys: typeof b.keys === 'string' ? b.keys : '',
+      mode: BIND_WORDS[b.mode] ? b.mode : 'normal',
+      interval: clampNumber(b.interval, INTERVAL_MIN, INTERVAL_MAX, INTERVAL_DEFAULT)
+    };
+  });
+}
+
+function cloneBinds(list) {
+  return list.map(b => Object.assign({}, b));
+}
+
+function bindsDirty() {
+  const saved = state.binds;
+  const draft = state.bindDraft;
+  if (!saved || !draft) return false;
+  return draft.some((d, i) => d.keys.trim() !== saved[i].keys || d.mode !== saved[i].mode || d.interval !== saved[i].interval);
+}
+
+function setModeState(mode) {
+  if (mode !== 'bind' && mode !== 'macro') return;
+  state.mode = mode;
+  if (mode !== 'bind') state.pad = null;
+}
+
+function isBindMode() {
+  return state.connected && state.mode === 'bind';
+}
+
+function padPressed(button) {
+  return !!state.pad && (state.pad.pressed & BIND_MASKS[button]) !== 0;
+}
+
+function padToggled(button) {
+  return !!state.pad && (state.pad.toggled & BIND_MASKS[button]) !== 0;
+}
+
+async function loadBinds() {
+  try {
+    const reply = await request('binds');
+    state.binds = normalizeBinds(reply.binds);
+    state.bindDraft = cloneBinds(state.binds);
+    setModeState(reply.mode);
+  } catch (err) {
+    state.binds = null;
+    state.bindDraft = null;
+    toast('Could not read the bindings: ' + messageFor(err), 'error');
+  }
+  state.bindError = '';
+  renderBinds();
+}
+
+async function saveBinds() {
+  if (!state.connected || !state.bindDraft || bindSaving) return;
+  bindSaving = true;
+  renderBinds();
+  try {
+    const set = state.bindDraft.map(b => ({ button: b.button, keys: b.keys.trim(), mode: b.mode, interval: b.interval }));
+    const reply = await request('binds', { set });
+    state.binds = normalizeBinds(reply.binds);
+    state.bindDraft = cloneBinds(state.binds);
+    setModeState(reply.mode);
+    state.bindError = '';
+    showBindsSaved();
+    renderMirror();
+  } catch (err) {
+    state.bindError = messageFor(err);
+    toast('Could not save the bindings: ' + state.bindError, 'error');
+  } finally {
+    bindSaving = false;
+    renderBinds();
+    renderTopbar();
+  }
+}
+
+async function setMode(mode) {
+  if (!state.connected || state.mode === mode) return;
+  try {
+    const reply = await request('mode', { set: mode });
+    setModeState(typeof reply.mode === 'string' ? reply.mode : mode);
+  } catch (err) {
+    toast('Could not switch the mode: ' + messageFor(err), 'error');
+  }
+  renderMode();
+}
+
+function renderMode() {
+  renderTopbar();
+  renderMirror();
+  renderBinds();
+  updateScriptMarks();
+  renderEditorActions();
+}
+
+function selectedIndex() {
+  return state.scripts.findIndex(s => s.name === state.selected);
+}
+
+function clampMirrorTop() {
+  const maxTop = Math.max(0, state.scripts.length - MIRROR_ROWS);
+  state.mirrorTop = Math.max(0, Math.min(state.mirrorTop, maxTop));
+}
+
+function ensureSelectedVisible() {
+  const index = selectedIndex();
+  if (index >= 0) {
+    if (index < state.mirrorTop) state.mirrorTop = index;
+    else if (index >= state.mirrorTop + MIRROR_ROWS) state.mirrorTop = index - MIRROR_ROWS + 1;
+  }
+  clampMirrorTop();
+}
+
+function restoreLastOpen() {
+  const name = lastOpenName();
+  if (!name || state.open) return;
+  if (state.scripts.some(s => s.name === name)) openScript(name);
+}
+
+function askUnsaved() {
+  return new Promise(resolve => {
+    const dialog = els.unsavedDialog;
+    els.unsavedText.textContent = '"' + state.open.name + '" has changes that are not on the device yet.';
+    els.unsavedSave.disabled = !state.connected;
+    dialog.returnValue = '';
+    dialog.addEventListener('close', () => resolve(dialog.returnValue || 'cancel'), { once: true });
+    dialog.showModal();
+  });
+}
+
+async function ensureClean() {
+  if (!isDirty()) return true;
+  const choice = await askUnsaved();
+  if (choice === 'save') return saveScript();
+  return choice === 'discard';
+}
+
+async function openScript(name) {
+  if (isOpenScript(name)) return;
+  if (!(await ensureClean())) return;
+  setBusy(1);
+  try {
+    const reply = await request('get', { name });
+    const content = typeof reply.content === 'string' ? reply.content : '';
+    state.open = { name, originalName: name, content, savedContent: content, isNew: false };
+    state.check = { valid: null, error: '', line: 0 };
+    state.confirmDelete = null;
+    lastCheckedContent = null;
+    rememberOpen(name);
+    loadEditor();
+    renderScripts();
+    runCheck();
+    request('select', { name }).then(() => {
+      state.selected = name;
+      ensureSelectedVisible();
+      renderMirror();
+      updateScriptMarks();
+    }).catch(() => {});
+  } catch (err) {
+    toast('Could not open "' + name + '": ' + messageFor(err), 'error');
+  } finally {
+    setBusy(-1);
+  }
+}
+
+async function newMacro(example) {
+  if (!(await ensureClean())) return;
+  const name = example ? uniqueName(example.name) : suggestDraftName();
+  state.open = { name, originalName: '', content: example ? example.lines.join('\n') + '\n' : '', savedContent: null, isNew: true };
+  state.check = { valid: null, error: '', line: 0 };
+  state.confirmDelete = null;
+  lastCheckedContent = null;
+  loadEditor();
+  renderScripts();
+  if (example) {
+    runCheck();
+    els.src.focus();
+  } else {
+    els.nameInput.focus();
+    els.nameInput.select();
+  }
+}
+
+async function saveScript() {
+  const o = state.open;
+  if (!o) return false;
+  if (!state.connected) {
+    toast('Connect the device before saving.', 'error');
+    return false;
+  }
+  const problem = openProblem();
+  if (problem) {
+    toast(problem, 'error');
+    els.nameInput.focus();
+    return false;
+  }
+  if (byteLength(o.content) > CONTENT_LIMIT) {
+    toast('This macro is over 24 KB. Shorten it before saving.', 'error');
+    return false;
+  }
+  setBusy(1);
+  try {
+    if (!o.isNew && o.name !== o.originalName) {
+      await request('rename', { from: o.originalName, to: o.name });
+      if (state.selected === o.originalName) state.selected = o.name;
+      o.originalName = o.name;
+    }
+    const reply = await request('put', { name: o.name, content: o.content });
+    o.savedContent = o.content;
+    o.isNew = false;
+    o.originalName = o.name;
+    lastCheckedContent = o.content;
+    state.check = { valid: reply.valid !== false, error: reply.error || '', line: reply.line || 0 };
+    rememberOpen(o.name);
+    await refreshList();
+    loadInfo();
+    if (reply.valid === false) toast('Saved "' + o.name + '" with a syntax error on line ' + (reply.line || '?') + '.', 'info');
+    else toast('Saved "' + o.name + '" to the device.', 'success');
+    return true;
+  } catch (err) {
+    toast('Could not save "' + o.name + '": ' + messageFor(err), 'error');
+    return false;
+  } finally {
+    setBusy(-1);
+    renderEditor();
+  }
+}
+
+async function runOpen() {
+  const o = state.open;
+  if (!o || state.run.state === 'running') return;
+  if (state.mode === 'bind') {
+    toast(BIND_HINT + '.', 'info');
+    return;
+  }
+  if (o.isNew || isDirty()) {
+    const saved = await saveScript();
+    if (!saved) return;
+  }
+  await runNamed(o.originalName);
+}
+
+async function runNamed(name) {
+  try {
+    const reply = await request('run', { name });
+    applyState(reply);
+  } catch (err) {
+    toast('Could not run "' + name + '": ' + messageFor(err), 'error');
+  }
+}
+
+async function stopRun() {
+  try {
+    const reply = await request('stop');
+    applyState(reply);
+  } catch (err) {
+    toast('Could not stop the macro: ' + messageFor(err), 'error');
+  }
+}
+
+function askDelete(name, focusEditor) {
+  state.confirmDelete = name;
+  state.renaming = null;
+  renderScripts();
+  renderEditorActions();
+  const rowButton = els.scriptList.querySelector('.script.confirming .btn-danger');
+  if (focusEditor) els.confirmYes.focus();
+  else if (rowButton) rowButton.focus();
+}
+
+function cancelConfirm() {
+  state.confirmDelete = null;
+  renderScripts();
+  renderEditorActions();
+}
+
+async function deleteNamed(name) {
+  setBusy(1);
+  try {
+    await request('del', { name });
+    state.confirmDelete = null;
+    if (isOpenScript(name)) {
+      state.open = null;
+      forgetOpen();
+      loadEditor();
+    }
+    await refreshList();
+    loadInfo();
+    toast('Deleted "' + name + '".', 'success');
+  } catch (err) {
+    toast('Could not delete "' + name + '": ' + messageFor(err), 'error');
+  } finally {
+    setBusy(-1);
+    renderScripts();
+    renderEditor();
+  }
+}
+
+function startRename(name) {
+  state.renaming = name;
+  state.renameError = '';
+  state.confirmDelete = null;
+  renderScripts();
+  focusRenameInput();
+}
+
+function focusRenameInput() {
+  const input = els.scriptList.querySelector('.rename-input');
+  if (!input) return;
+  input.focus();
+  input.select();
+}
+
+function cancelRename() {
+  state.renaming = null;
+  state.renameError = '';
+  renderScripts();
+}
+
+async function commitRename(from, to) {
+  if (to === from) {
+    cancelRename();
+    return;
+  }
+  const problem = nameProblem(to, from);
+  if (problem) {
+    state.renameError = problem;
+    renderScripts();
+    focusRenameInput();
+    return;
+  }
+  setBusy(1);
+  try {
+    await request('rename', { from, to });
+    if (state.selected === from) state.selected = to;
+    if (isOpenScript(from)) {
+      if (state.open.name === from) state.open.name = to;
+      state.open.originalName = to;
+      rememberOpen(to);
+    }
+    state.renaming = null;
+    state.renameError = '';
+    await refreshList();
+    renderEditor();
+    toast('Renamed to "' + to + '".', 'success');
+  } catch (err) {
+    state.renameError = messageFor(err);
+    renderScripts();
+    focusRenameInput();
+  } finally {
+    setBusy(-1);
+  }
+}
+
+function scheduleCheck() {
+  clearTimeout(checkTimer);
+  checkTimer = setTimeout(runCheck, CHECK_DEBOUNCE_MS);
+}
+
+async function runCheck() {
+  clearTimeout(checkTimer);
+  if (!state.connected || !state.open) return;
+  const content = state.open.content;
+  if (content === lastCheckedContent) return;
+  const seq = ++checkSeq;
+  try {
+    const reply = await request('check', { content });
+    if (seq !== checkSeq) return;
+    lastCheckedContent = content;
+    state.check = { valid: reply.valid !== false, error: reply.error || '', line: reply.line || 0 };
+  } catch (err) {
+    if (seq !== checkSeq) return;
+    state.check = { valid: null, error: '', line: 0 };
+  }
+  renderStatusLine();
+  renderGutter();
+}
+
+function loadEditor() {
+  els.src.value = state.open ? state.open.content : '';
+  els.src.scrollTop = 0;
+  gutterCount = -1;
+  renderEditor();
+}
+
+function insertAtCaret(text) {
+  const area = els.src;
+  const inserted = document.execCommand && document.execCommand('insertText', false, text);
+  if (!inserted) {
+    area.setRangeText(text, area.selectionStart, area.selectionEnd, 'end');
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+function goToLine(line) {
+  const area = els.src;
+  const lines = area.value.split('\n');
+  const target = Math.min(Math.max(line, 1), lines.length);
+  let start = 0;
+  for (let i = 0; i < target - 1; i++) start += lines[i].length + 1;
+  const end = start + lines[target - 1].length;
+  area.focus();
+  area.setSelectionRange(start, end);
+  const lineHeight = parseFloat(getComputedStyle(area).lineHeight) || 20;
+  area.scrollTop = Math.max(0, (target - 4) * lineHeight);
+  els.gutter.scrollTop = area.scrollTop;
+}
+
+function fitMirror() {
+  const scale = els.mirrorWrap.clientWidth / SCREEN_WIDTH;
+  els.screen.style.setProperty('--scale', scale.toFixed(4));
+}
+
+function loopText(prefix, separator) {
+  const run = state.run;
+  if (!(run.loopDepth > 0)) return '';
+  return prefix + run.loop + (run.loopCount > 0 ? separator + run.loopCount : '');
+}
+
+function renderAll() {
+  renderTopbar();
+  renderMirror();
+  renderScripts();
+  renderEditor();
+  renderBinds();
+  renderSettings();
+  renderInfo();
+}
+
+function renderTopbar() {
+  const online = state.connected && !state.connecting;
+  els.connPill.classList.toggle('on', online);
+  els.connPill.classList.toggle('busy', state.connecting);
+  let text = 'Not connected';
+  if (state.connecting) text = 'Connecting';
+  else if (online) text = 'Connected' + (state.device.fw ? ' · fw ' + state.device.fw : '');
+  els.connText.textContent = text;
+  els.connectBtn.textContent = state.connected ? 'Disconnect' : 'Connect';
+  els.connectBtn.classList.toggle('btn-primary', !state.connected);
+  els.connectBtn.disabled = state.connecting;
+  const bind = state.mode === 'bind';
+  els.modeSeg.classList.toggle('off', !online);
+  els.modeMacro.disabled = !online;
+  els.modeBind.disabled = !online;
+  els.modeMacro.classList.toggle('on', online && !bind);
+  els.modeBind.classList.toggle('on', online && bind);
+  els.modeMacro.setAttribute('aria-pressed', String(online && !bind));
+  els.modeBind.setAttribute('aria-pressed', String(online && bind));
+}
+
+function renderMirror() {
+  const run = state.run;
+  const online = state.connected;
+  els.mirrorWrap.classList.toggle('off', !online);
+  els.dotPad.classList.toggle('lit', online && state.device.gamepad);
+  els.dotWeb.classList.toggle('lit', online);
+  els.dotUsb.classList.toggle('lit', online && state.device.usb);
+  const runningName = online && run.state === 'running' ? run.script : '';
+  const bind = isBindMode();
+  els.dMode.hidden = !bind;
+  els.dBind.hidden = !bind;
+  els.dEmpty.hidden = !online || bind || state.scripts.length > 0;
+  mirrorRows.forEach((slot, i) => {
+    const index = state.mirrorTop + i;
+    const item = bind ? null : state.scripts[index];
+    slot.row.hidden = !item;
+    if (!item) return;
+    slot.row.classList.toggle('sel', item.name === state.selected);
+    slot.num.textContent = String(index + 1);
+    slot.name.textContent = item.name;
+    slot.pill.hidden = item.name !== runningName;
+  });
+  if (bind) renderBindMirror();
+  els.footRun.hidden = bind;
+  els.footStop.hidden = bind;
+  els.footPick.hidden = bind;
+  els.footSetup.hidden = !bind;
+  els.footSelText.textContent = bind ? 'macros' : 'bind';
+  const kind = online && !bind ? run.state : 'idle';
+  els.dStatus.className = 'd-status ' + kind;
+  els.dSdot.hidden = kind !== 'running';
+  let primary = 'Pick a macro, press A to run it';
+  let secondary = '';
+  let elapsed = '';
+  if (bind) {
+    primary = 'Gamepad acts as a keyboard';
+    secondary = 'START setup   SELECT macros';
+  } else if (kind === 'running') {
+    primary = run.script;
+    secondary = 'line ' + run.line + '/' + run.total + loopText('   loop ', '/');
+    elapsed = formatElapsed(run.elapsed);
+  } else if (kind === 'finished') {
+    primary = 'Done';
+    secondary = run.script;
+  } else if (kind === 'stopped') {
+    primary = 'Stopped';
+    secondary = run.script;
+  } else if (kind === 'error') {
+    primary = 'Error in ' + run.script + ', line ' + run.line;
+    secondary = run.error;
+  }
+  els.dS1.textContent = primary;
+  els.dS2.textContent = secondary;
+  els.dElapsed.textContent = elapsed;
+  els.caption.textContent = captionText();
+}
+
+function renderBindMirror() {
+  const binds = state.binds || defaultBinds();
+  bindMirrorRows.forEach((slot, i) => {
+    const b = binds[i];
+    const toggledOn = b.mode === 'toggle' && padToggled(b.button);
+    slot.row.classList.toggle('pressed', padPressed(b.button));
+    slot.keys.textContent = b.keys || 'unbound';
+    slot.keys.classList.toggle('unbound', !b.keys);
+    slot.mode.textContent = toggledOn ? 'toggle ON' : BIND_WORDS[b.mode];
+    slot.mode.classList.toggle('on', toggledOn);
+  });
+}
+
+function captionText() {
+  if (!state.connected) return 'Not connected';
+  if (state.mode === 'bind') {
+    const pressed = (state.binds || []).filter(b => b.keys && padPressed(b.button));
+    if (pressed.length) return 'Pressing ' + pressed.map(b => BIND_LABELS[b.button] + ' (' + b.keys + ')').join(', ');
+    return 'Bind mode: gamepad sends keys';
+  }
+  const run = state.run;
+  switch (run.state) {
+    case 'running':
+      return 'Running ' + run.script + ', line ' + run.line + ' of ' + run.total + loopText(', loop ', ' of ');
+    case 'finished':
+      return 'Finished ' + run.script;
+    case 'stopped':
+      return 'Stopped ' + run.script;
+    case 'error':
+      return 'Error in ' + run.script + ' at line ' + run.line + ': ' + run.error;
+    default:
+      return 'Idle';
+  }
+}
+
+function renderScripts() {
+  const list = els.scriptList;
+  list.textContent = '';
+  const items = [];
+  if (state.open && state.open.isNew) items.push({ name: state.open.name, size: byteLength(state.open.content), draft: true });
+  for (const script of state.scripts) items.push(script);
+  els.scriptsOffline.hidden = state.connected;
+  els.scriptsEmpty.hidden = !state.connected || items.length > 0;
+  els.scriptCount.textContent = state.scripts.length ? String(state.scripts.length) : '';
+  for (const item of items) list.appendChild(renderScriptRow(item));
+  updateScriptMarks();
+}
+
+function renderScriptRow(item) {
+  const li = el('li', 'script');
+  li.dataset.name = item.name;
+  const isOpen = item.draft ? !!(state.open && state.open.isNew) : isOpenScript(item.name);
+  li.classList.toggle('active', isOpen);
+  li.classList.toggle('draft', !!item.draft);
+  if (!item.draft && state.renaming === item.name) {
+    li.appendChild(renderRenameForm(item.name));
+    return li;
+  }
+  const open = el('button', 'script-open');
+  open.type = 'button';
+  if (isOpen) open.setAttribute('aria-current', 'true');
+  open.appendChild(el('span', 'script-name', item.name));
+  if (item.draft) open.appendChild(el('span', 'tag', 'draft'));
+  const dirty = el('span', 'dirty-dot');
+  dirty.title = 'Unsaved changes';
+  open.appendChild(dirty);
+  const running = el('span', 'run-dot');
+  running.title = 'Running';
+  open.appendChild(running);
+  open.appendChild(el('span', 'script-size', formatBytes(item.size)));
+  open.addEventListener('click', () => {
+    if (!item.draft) openScript(item.name);
+  });
+  li.appendChild(open);
+  const actions = el('div', 'script-actions');
+  if (item.draft) {
+    actions.appendChild(el('span', 'unit', 'Not on the device yet. Save it from the editor.'));
+  } else if (state.confirmDelete === item.name) {
+    li.classList.add('confirming');
+    actions.appendChild(el('span', 'confirm-text', 'Delete this macro?'));
+    actions.appendChild(button('Delete', 'btn btn-sm btn-danger', () => deleteNamed(item.name)));
+    actions.appendChild(button('Cancel', 'btn btn-sm', cancelConfirm));
+  } else {
+    const run = button('Run', 'btn btn-sm', () => {
+      if (state.run.state === 'running' && state.run.script === item.name) stopRun();
+      else runNamed(item.name);
+    });
+    run.dataset.action = 'run';
+    actions.appendChild(run);
+    actions.appendChild(button('Rename', 'btn btn-sm', () => startRename(item.name)));
+    actions.appendChild(button('Delete', 'btn btn-sm btn-danger', () => askDelete(item.name)));
+  }
+  li.appendChild(actions);
+  return li;
+}
+
+function renderRenameForm(from) {
+  const wrap = el('div', 'rename');
+  const input = el('input', 'rename-input');
+  input.type = 'text';
+  input.value = from;
+  input.maxLength = 32;
+  input.spellcheck = false;
+  input.setAttribute('aria-label', 'New name for ' + from);
+  const hint = el('p', 'rename-hint', state.renameError);
+  hint.hidden = !state.renameError;
+  const actions = el('div', 'rename-actions');
+  actions.appendChild(button('Rename', 'btn btn-sm btn-primary', () => commitRename(from, input.value)));
+  actions.appendChild(button('Cancel', 'btn btn-sm', cancelRename));
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitRename(from, input.value);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      cancelRename();
+    }
+  });
+  wrap.append(input, hint, actions);
+  return wrap;
+}
+
+function updateDraftRow() {
+  const row = els.scriptList.querySelector('.script.draft');
+  if (!row || !state.open || !state.open.isNew) return;
+  row.dataset.name = state.open.name;
+  row.querySelector('.script-name').textContent = state.open.name;
+  row.querySelector('.script-size').textContent = formatBytes(byteLength(state.open.content));
+}
+
+function updateScriptMarks() {
+  const online = state.connected;
+  const runningName = online && state.run.state === 'running' ? state.run.script : '';
+  const dirty = isDirty();
+  const bind = state.mode === 'bind';
+  for (const li of els.scriptList.children) {
+    const name = li.dataset.name;
+    const draft = li.classList.contains('draft');
+    const isRunning = !draft && name === runningName;
+    li.classList.toggle('running', isRunning);
+    li.classList.toggle('selected', !draft && name === state.selected);
+    li.classList.toggle('dirty', li.classList.contains('active') && dirty);
+    const runButton = li.querySelector('[data-action="run"]');
+    if (runButton) {
+      runButton.textContent = isRunning ? 'Stop' : 'Run';
+      runButton.disabled = !online || bind || (!!runningName && !isRunning);
+      runButton.title = bind ? BIND_HINT : '';
+    }
+  }
+}
+
+function renderEditor() {
+  const o = state.open;
+  els.editorEmpty.hidden = !!o;
+  els.editorBody.hidden = !o;
+  if (!o) return;
+  if (els.nameInput.value !== o.name) els.nameInput.value = o.name;
+  els.editorDirty.hidden = !isDirty();
+  renderNameHint();
+  renderSize();
+  renderGutter();
+  renderStatusLine();
+  renderEditorActions();
+}
+
+function renderNameHint() {
+  const o = state.open;
+  if (!o) return;
+  const problem = openProblem();
+  const focused = document.activeElement === els.nameInput;
+  els.nameInput.classList.toggle('invalid', !!problem);
+  els.nameHint.classList.toggle('err', !!problem);
+  els.nameHint.textContent = problem || NAME_RULE;
+  els.nameHint.hidden = !problem && !focused;
+}
+
+function renderSize() {
+  const size = byteLength(state.open.content);
+  els.sizeReadout.textContent = formatBytes(size) + ' of 24 KB';
+  els.sizeReadout.classList.toggle('over', size > CONTENT_LIMIT);
+}
+
+function renderGutter() {
+  const content = state.open ? state.open.content : '';
+  const count = content.split('\n').length;
+  if (count !== gutterCount) {
+    const fragment = document.createDocumentFragment();
+    for (let i = 1; i <= count; i++) fragment.appendChild(el('div', '', String(i)));
+    els.gutter.textContent = '';
+    els.gutter.appendChild(fragment);
+    gutterCount = count;
+    gutterErrLine = 0;
+    gutterLiveLine = 0;
+  }
+  const errLine = state.open && state.check.valid === false ? state.check.line : 0;
+  const liveLine = isOpenRunning() ? state.run.line : 0;
+  setGutterMark(gutterErrLine, 'err', false);
+  setGutterMark(errLine, 'err', true);
+  gutterErrLine = errLine;
+  setGutterMark(gutterLiveLine, 'live', false);
+  setGutterMark(liveLine, 'live', true);
+  gutterLiveLine = liveLine;
+  els.gutter.scrollTop = els.src.scrollTop;
+}
+
+function setGutterMark(line, className, on) {
+  const node = line > 0 ? els.gutter.children[line - 1] : null;
+  if (node) node.classList.toggle(className, on);
+}
+
+function renderStatusLine() {
+  const line = els.statusLine;
+  line.className = 'status-line';
+  line.textContent = '';
+  if (!state.open) return;
+  if (!state.connected) {
+    line.textContent = 'Connect the device to check the syntax.';
+    return;
+  }
+  const check = state.check;
+  if (check.valid === null) {
+    line.textContent = 'Checking';
+    return;
+  }
+  if (check.valid) {
+    line.classList.add('ok');
+    line.textContent = 'Valid';
+    return;
+  }
+  const label = (check.line ? 'Line ' + check.line + ': ' : '') + (check.error || 'Syntax error');
+  const jump = button(label, 'status-err', () => goToLine(check.line || 1));
+  jump.title = 'Go to this line';
+  line.appendChild(jump);
+}
+
+function renderEditorActions() {
+  const o = state.open;
+  if (!o) return;
+  const online = state.connected && !state.connecting;
+  const idle = state.busy === 0;
+  const problem = openProblem();
+  const canSave = online && idle && !problem && byteLength(o.content) <= CONTENT_LIMIT;
+  const running = state.run.state === 'running';
+  const needsSave = o.isNew || isDirty();
+  const bind = state.mode === 'bind';
+  els.saveBtn.disabled = !canSave;
+  els.runBtn.disabled = !online || !idle || running || bind || (needsSave && !canSave);
+  els.runBtn.title = bind ? BIND_HINT : '';
+  els.stopBtn.disabled = !online || !running;
+  els.deleteBtn.disabled = !online || !idle || o.isNew;
+  els.shortcuts.textContent = MOD_KEY + '+S saves, ' + MOD_KEY + '+Enter runs';
+  const confirming = !o.isNew && state.confirmDelete !== null && state.confirmDelete === o.originalName;
+  els.editorActions.hidden = confirming;
+  els.confirmStrip.hidden = !confirming;
+  if (confirming) els.confirmText.textContent = 'Delete "' + o.originalName + '" from the device?';
+}
+
+function renderSettings() {
+  const online = state.connected && !state.connecting;
+  els.timeoutInput.disabled = !online;
+  els.brightnessInput.disabled = !online;
+  if (document.activeElement !== els.timeoutInput) els.timeoutInput.value = String(state.config.screenTimeout);
+  if (document.activeElement !== els.brightnessInput) els.brightnessInput.value = String(state.config.brightness);
+  els.brightnessValue.textContent = String(state.config.brightness);
+}
+
+function buildBindRows() {
+  BIND_BUTTONS.forEach((button, i) => {
+    const row = el('div', 'bind-row');
+    const inputId = 'bindKeys-' + button;
+    const label = el('label', 'bind-label', BIND_LABELS[button]);
+    label.htmlFor = inputId;
+    const keys = el('input', 'bind-keys');
+    keys.type = 'text';
+    keys.id = inputId;
+    keys.placeholder = 'unbound';
+    keys.autocomplete = 'off';
+    keys.spellcheck = false;
+    keys.disabled = true;
+    const mode = el('select', 'bind-mode');
+    mode.setAttribute('aria-label', BIND_LABELS[button] + ' behavior');
+    for (const [value, text] of BIND_MODES) mode.appendChild(new Option(text, value));
+    mode.disabled = true;
+    const intervalWrap = el('div', 'bind-interval');
+    const interval = el('input');
+    interval.type = 'number';
+    interval.min = String(INTERVAL_MIN);
+    interval.max = String(INTERVAL_MAX);
+    interval.step = '1';
+    interval.setAttribute('aria-label', BIND_LABELS[button] + ' burst interval');
+    interval.disabled = true;
+    intervalWrap.append(interval, el('span', 'unit', 'ms between taps'));
+    intervalWrap.hidden = true;
+    row.append(label, keys, mode, intervalWrap);
+    els.bindRows.appendChild(row);
+    bindRows.push({ button, row, keys, mode, interval, intervalWrap });
+    const draft = () => (state.bindDraft ? state.bindDraft[i] : null);
+    keys.addEventListener('input', () => {
+      const d = draft();
+      if (!d) return;
+      d.keys = keys.value;
+      renderBindMarks();
+    });
+    mode.addEventListener('change', () => {
+      const d = draft();
+      if (!d) return;
+      d.mode = mode.value;
+      renderBinds();
+    });
+    interval.addEventListener('change', () => {
+      const d = draft();
+      if (!d) return;
+      d.interval = clampNumber(interval.value, INTERVAL_MIN, INTERVAL_MAX, d.interval);
+      interval.value = String(d.interval);
+      renderBindMarks();
+    });
+  });
+}
+
+function renderBinds() {
+  const online = state.connected && !state.connecting;
+  const draft = state.bindDraft;
+  const ready = online && !!draft && !bindSaving;
+  bindRows.forEach((slot, i) => {
+    const d = draft ? draft[i] : null;
+    slot.keys.disabled = !ready;
+    slot.mode.disabled = !ready;
+    slot.interval.disabled = !ready;
+    const keys = d ? d.keys : '';
+    if (slot.keys.value !== keys) slot.keys.value = keys;
+    slot.mode.value = d ? d.mode : 'normal';
+    const interval = String(d ? d.interval : INTERVAL_DEFAULT);
+    if (document.activeElement !== slot.interval && slot.interval.value !== interval) slot.interval.value = interval;
+    slot.intervalWrap.hidden = !d || d.mode !== 'burst';
+  });
+  els.bindError.textContent = state.bindError;
+  els.bindError.hidden = !state.bindError;
+  renderBindMarks();
+}
+
+function renderBindMarks() {
+  const online = state.connected && !state.connecting;
+  const dirty = bindsDirty();
+  const bind = isBindMode();
+  for (const slot of bindRows) slot.row.classList.toggle('pressed', bind && padPressed(slot.button));
+  els.bindsDirty.hidden = !dirty;
+  els.saveBindsBtn.disabled = !online || !dirty || bindSaving;
+}
+
+function renderInfo() {
+  const parts = [];
+  if (state.connected && state.device.fw) parts.push('Firmware ' + state.device.fw);
+  if (state.connected && state.info && state.info.fsTotal > 0) {
+    parts.push(formatBytes(state.info.fsUsed) + ' of ' + formatBytes(state.info.fsTotal) + ' used');
+  }
+  els.deviceInfo.textContent = parts.join(' · ');
+}
+
+function renderExamples() {
+  for (const example of EXAMPLES) {
+    const card = el('div', 'example');
+    const head = el('div', 'example-head');
+    head.appendChild(el('span', '', example.title));
+    const insert = button('Insert', 'btn btn-sm', () => newMacro(example));
+    insert.setAttribute('aria-label', 'Insert example: ' + example.title);
+    head.appendChild(insert);
+    card.appendChild(head);
+    card.appendChild(el('pre', '', example.lines.join('\n')));
+    els.examples.appendChild(card);
+  }
+}
+
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function bindEvents() {
+  els.connectBtn.addEventListener('click', () => {
+    if (state.connected) disconnect('user');
+    else connect();
+  });
+
+  els.newBtn.addEventListener('click', () => newMacro());
+  els.newBtnEmpty.addEventListener('click', () => newMacro());
+
+  els.nameInput.addEventListener('input', () => {
+    if (!state.open) return;
+    state.open.name = els.nameInput.value;
+    renderNameHint();
+    renderEditorActions();
+    updateDraftRow();
+  });
+  els.nameInput.addEventListener('focus', renderNameHint);
+  els.nameInput.addEventListener('blur', renderNameHint);
+  els.nameInput.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      els.src.focus();
+    }
+  });
+
+  els.src.addEventListener('input', () => {
+    if (!state.open) return;
+    state.open.content = els.src.value;
+    state.check = { valid: null, error: '', line: 0 };
+    els.editorDirty.hidden = !isDirty();
+    renderSize();
+    renderGutter();
+    renderStatusLine();
+    renderEditorActions();
+    updateDraftRow();
+    updateScriptMarks();
+    scheduleCheck();
+  });
+  els.src.addEventListener('scroll', () => {
+    els.gutter.scrollTop = els.src.scrollTop;
+  });
+  els.src.addEventListener('keydown', event => {
+    if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      insertAtCaret('  ');
+    }
+  });
+
+  els.saveBtn.addEventListener('click', () => saveScript());
+  els.runBtn.addEventListener('click', () => runOpen());
+  els.stopBtn.addEventListener('click', () => stopRun());
+  els.deleteBtn.addEventListener('click', () => {
+    if (state.open && !state.open.isNew) askDelete(state.open.originalName, true);
+  });
+  els.confirmYes.addEventListener('click', () => {
+    if (state.confirmDelete) deleteNamed(state.confirmDelete);
+  });
+  els.confirmNo.addEventListener('click', () => {
+    cancelConfirm();
+    els.deleteBtn.focus();
+  });
+
+  els.refToggle.addEventListener('click', () => {
+    state.refOpen = !state.refOpen;
+    els.ref.classList.toggle('open', state.refOpen);
+    els.refToggle.setAttribute('aria-expanded', String(state.refOpen));
+    els.refToggle.textContent = state.refOpen ? 'Hide' : 'Show';
+  });
+
+  els.modeMacro.addEventListener('click', () => setMode('macro'));
+  els.modeBind.addEventListener('click', () => setMode('bind'));
+  els.saveBindsBtn.addEventListener('click', () => saveBinds());
+  els.keyNamesLink.addEventListener('click', () => {
+    state.refOpen = true;
+    els.ref.classList.add('open');
+    els.refToggle.setAttribute('aria-expanded', 'true');
+    els.refToggle.textContent = 'Hide';
+  });
+
+  els.timeoutInput.addEventListener('change', () => {
+    const value = clampNumber(els.timeoutInput.value, 0, 3600, state.config.screenTimeout);
+    els.timeoutInput.value = String(value);
+    applyConfig({ screenTimeout: value });
+  });
+  els.brightnessInput.addEventListener('input', () => {
+    els.brightnessValue.textContent = els.brightnessInput.value;
+  });
+  els.brightnessInput.addEventListener('change', () => {
+    const value = clampNumber(els.brightnessInput.value, 5, 255, state.config.brightness);
+    applyConfig({ brightness: value });
+  });
+
+  document.addEventListener('keydown', event => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (mod && (event.key === 's' || event.key === 'S')) {
+      if (!state.open) return;
+      event.preventDefault();
+      saveScript();
+    } else if (mod && event.key === 'Enter') {
+      if (!state.open) return;
+      event.preventDefault();
+      runOpen();
+    } else if (event.key === 'Escape' && (state.renaming || state.confirmDelete)) {
+      state.renaming = null;
+      state.renameError = '';
+      state.confirmDelete = null;
+      renderScripts();
+      renderEditorActions();
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.connected && !state.connecting) {
+      request('status').then(applyState).catch(() => {});
+    }
+  });
+
+  window.addEventListener('beforeunload', event => {
+    if (isDirty() || bindsDirty()) event.preventDefault();
+  });
+
+  if (SERIAL_SUPPORTED) {
+    navigator.serial.addEventListener('disconnect', event => {
+      if (event.target === serial.port) disconnect('lost');
+    });
+  }
+
+  if ('ResizeObserver' in window) new ResizeObserver(fitMirror).observe(els.mirrorWrap);
+  else window.addEventListener('resize', fitMirror);
+}
+
+function init() {
+  if (!SERIAL_SUPPORTED) {
+    els.connectBtn.hidden = true;
+    els.noSerial.hidden = false;
+  }
+  renderExamples();
+  buildBindRows();
+  bindEvents();
+  fitMirror();
+  renderAll();
+}
+
+init();
+</script>
+</body>
+</html>

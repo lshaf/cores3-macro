@@ -1,0 +1,8 @@
+# Spotlight, open Terminal, run uptime
+KEY gui+space
+DELAY 400
+STRING terminal
+DELAY 400
+ENTER
+DELAY 1500
+STRINGLN uptime

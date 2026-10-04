@@ -1,0 +1,5 @@
+# Types a line every 2 seconds until you press B
+LOOP
+  STRINGLN Hello from Core Macro
+  DELAY 2s
+END

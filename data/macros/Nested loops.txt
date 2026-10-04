@@ -1,0 +1,9 @@
+# 3 rows of 5 stars, then Enter twice
+LOOP 3
+  LOOP 5
+    STRING *
+    DELAY 100
+  END
+  ENTER
+END
+ENTER
