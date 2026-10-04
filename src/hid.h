@@ -12,8 +12,14 @@ enum MouseButton : uint8_t {
     MOUSE_BTN_MIDDLE = 4,
 };
 
+enum class Transport : uint8_t { Usb, Ble };
+
 void begin();
 bool mounted();
+void setTransport(Transport transport);
+Transport transport();
+bool outputReady();
+bool bleConnected();
 bool keyCodeFor(const char* name, uint8_t& code);
 bool consumerCodeFor(const char* name, uint16_t& usage);
 bool mouseButtonFor(const char* name, uint8_t& button);

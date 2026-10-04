@@ -50,6 +50,7 @@ void App::setup() {
     applyBrightness();
     _binds.load();
     _bindMode = false;
+    if (_config.ble) hid::setTransport(hid::Transport::Ble);
 
     hid::begin();
     serial_api::begin();
@@ -96,6 +97,8 @@ UiModel App::model() {
     m.host = serial_api::hostConnected();
     m.gamepad = _pad.available();
     m.storageOk = _storageOk;
+    m.ble = hid::transport() == hid::Transport::Ble;
+    m.outputReady = hid::outputReady();
     m.bindMode = _bindMode;
     m.binds = &_binds;
     m.padPressed = _binds.pressedMask();
@@ -192,6 +195,42 @@ void App::setBindMode(bool enabled, uint32_t now) {
     sendMode();
 }
 
+void App::setTransport(bool ble, uint32_t now) {
+    const bool current = hid::transport() == hid::Transport::Ble;
+    if (ble == current) return;
+    hid::setTransport(ble ? hid::Transport::Ble : hid::Transport::Usb);
+    _config.ble = ble;
+    _configDirty = true;
+    _configDirtyAt = now;
+    _dirty = true;
+    sendState(now);
+}
+
+void App::handleStartButton(uint32_t now) {
+    const bool held = _pad.pressed(PAD_START);
+    if (_pad.fired(PAD_START)) {
+        _startDownAt = now;
+        _startConsumed = false;
+        _startHeld = true;
+        return;
+    }
+    if (held && _startHeld && !_startConsumed && now - _startDownAt >= cfg::kStartHoldMs) {
+        _startConsumed = true;
+        setTransport(hid::transport() != hid::Transport::Ble, now);
+        return;
+    }
+    if (!held && _startHeld) {
+        _startHeld = false;
+        if (_startConsumed) return;
+        if (!_bindMode) return;
+        if (_setup.open) {
+            if (!_setup.editing) closeSetup();
+        } else {
+            openSetup();
+        }
+    }
+}
+
 void App::openSetup() {
     _binds.deactivate();
     _setup = BindSetup();
@@ -279,7 +318,7 @@ void App::handleSetupInput(uint32_t now) {
         if (_pad.fired(PAD_UP)) _setup.row = (_setup.row + Bindings::kSlots - 1) % Bindings::kSlots;
         if (_pad.fired(PAD_DOWN)) _setup.row = (_setup.row + 1) % Bindings::kSlots;
         if (_pad.fired(PAD_A)) beginEdit();
-        if (_pad.fired(PAD_B) || _pad.fired(PAD_START)) closeSetup();
+        if (_pad.fired(PAD_B)) closeSetup();
         _dirty = true;
         return;
     }
@@ -340,8 +379,6 @@ void App::handleInput(uint32_t now) {
                 setBindMode(!_bindMode, now);
             } else if (_bindMode && _setup.open) {
                 handleSetupInput(now);
-            } else if (_bindMode && _pad.fired(PAD_START)) {
-                openSetup();
             } else if (!_bindMode) {
                 if (_pad.fired(PAD_UP)) moveSelection(-1);
                 if (_pad.fired(PAD_DOWN)) moveSelection(1);
@@ -352,6 +389,7 @@ void App::handleInput(uint32_t now) {
             }
         }
     }
+    if (_screenOn) handleStartButton(now);
     if (_bindMode && !_setup.open) {
         _binds.update(static_cast<uint8_t>(_pad.pressedMask() & ~(PAD_SELECT | PAD_START)), now, *this);
         if (_binds.takeChanged()) {
@@ -455,6 +493,8 @@ void App::fillState(JsonDocument& doc, const MacroStatus& s, uint32_t now) {
     doc["usb"] = hid::mounted();
     doc["gamepad"] = _pad.available();
     doc["mode"] = _bindMode ? "bind" : "macro";
+    doc["transport"] = hid::transport() == hid::Transport::Ble ? "ble" : "usb";
+    doc["ready"] = hid::outputReady();
 }
 
 void App::fillBinds(JsonDocument& doc) {
@@ -636,12 +676,17 @@ void App::dispatch(JsonDocument& req, uint32_t now) {
                 _config.brightness = static_cast<uint8_t>(brightness);
                 applyBrightness();
             }
+            if (!set["transport"].isNull()) {
+                const String transport = String(set["transport"] | "usb");
+                setTransport(transport == "ble", now);
+            }
             _configDirty = true;
             _configDirtyAt = now;
             markActivity(now);
         }
         res["screenTimeout"] = _config.screenTimeoutMs / 1000u;
         res["brightness"] = _config.brightness;
+        res["transport"] = hid::transport() == hid::Transport::Ble ? "ble" : "usb";
     } else if (cmd == "binds") {
         if (req["set"].is<JsonArray>()) {
             String err;

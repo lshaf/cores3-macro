@@ -1,5 +1,8 @@
 #include "hid.h"
 
+#include "ble_hid.h"
+#include "config.h"
+
 #include <Arduino.h>
 #include <USB.h>
 #include <USBHIDConsumerControl.h>
@@ -16,6 +19,7 @@ USBHIDKeyboard keyboard;
 USBHIDMouse mouse;
 USBHIDConsumerControl consumer;
 SemaphoreHandle_t hidLock = nullptr;
+hid::Transport activeTransport = hid::Transport::Usb;
 
 struct Guard {
     Guard() { if (hidLock) xSemaphoreTakeRecursive(hidLock, portMAX_DELAY); }
@@ -128,6 +132,27 @@ bool hid::mounted() {
     return tud_mounted();
 }
 
+void hid::setTransport(Transport transport) {
+    Guard guard;
+    if (transport == activeTransport) return;
+    releaseAll();
+    activeTransport = transport;
+    if (transport == Transport::Ble) ble_hid::begin(cfg::kBleName);
+    else ble_hid::end();
+}
+
+hid::Transport hid::transport() {
+    return activeTransport;
+}
+
+bool hid::outputReady() {
+    return activeTransport == Transport::Ble ? ble_hid::connected() : tud_mounted();
+}
+
+bool hid::bleConnected() {
+    return ble_hid::connected();
+}
+
 bool hid::keyCodeFor(const char* name, uint8_t& code) {
     if (name == nullptr || name[0] == '\0') return false;
     if (name[1] == '\0') return charCode(name[0], code);
@@ -194,16 +219,25 @@ bool hid::parseCombo(const String& text, uint8_t* codes, uint8_t maxCodes, uint8
 
 void hid::pressKey(uint8_t code) {
     Guard guard;
+    if (activeTransport == Transport::Ble) {
+        ble_hid::pressKey(code);
+        return;
+    }
     keyboard.pressRaw(code);
 }
 
 void hid::releaseKey(uint8_t code) {
     Guard guard;
+    if (activeTransport == Transport::Ble) {
+        ble_hid::releaseKey(code);
+        return;
+    }
     keyboard.releaseRaw(code);
 }
 
 void hid::releaseAll() {
     Guard guard;
+    if (ble_hid::active()) ble_hid::releaseAll();
     keyboard.releaseAll();
     mouse.release(MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT | MOUSE_BTN_MIDDLE);
     consumer.release();
@@ -211,6 +245,10 @@ void hid::releaseAll() {
 
 void hid::typeChar(char c) {
     Guard guard;
+    if (activeTransport == Transport::Ble) {
+        ble_hid::typeChar(c);
+        return;
+    }
     keyboard.write(static_cast<uint8_t>(c));
 }
 
@@ -219,7 +257,8 @@ void hid::mouseMove(int dx, int dy) {
     while (dx != 0 || dy != 0) {
         const int8_t sx = clampStep(dx);
         const int8_t sy = clampStep(dy);
-        mouse.move(sx, sy, 0, 0);
+        if (activeTransport == Transport::Ble) ble_hid::mouseMove(sx, sy, 0);
+        else mouse.move(sx, sy, 0, 0);
         dx -= sx;
         dy -= sy;
     }
@@ -229,28 +268,47 @@ void hid::mouseScroll(int amount) {
     Guard guard;
     while (amount != 0) {
         const int8_t step = clampStep(amount);
-        mouse.move(0, 0, step, 0);
+        if (activeTransport == Transport::Ble) ble_hid::mouseMove(0, 0, step);
+        else mouse.move(0, 0, step, 0);
         amount -= step;
     }
 }
 
 void hid::mousePress(uint8_t button) {
     Guard guard;
+    if (activeTransport == Transport::Ble) {
+        ble_hid::mousePress(button);
+        return;
+    }
     mouse.press(button);
 }
 
 void hid::mouseRelease(uint8_t button) {
     Guard guard;
+    if (activeTransport == Transport::Ble) {
+        ble_hid::mouseRelease(button);
+        return;
+    }
     mouse.release(button);
 }
 
 void hid::mouseClick(uint8_t button) {
     Guard guard;
+    if (activeTransport == Transport::Ble) {
+        ble_hid::mousePress(button);
+        delay(cfg::kKeyTapHoldMs);
+        ble_hid::mouseRelease(button);
+        return;
+    }
     mouse.click(button);
 }
 
 void hid::consumerTap(uint16_t usage) {
     Guard guard;
+    if (activeTransport == Transport::Ble) {
+        ble_hid::consumerTap(usage);
+        return;
+    }
     consumer.press(usage);
     delay(10);
     consumer.release();

@@ -14,6 +14,7 @@ struct DeviceConfig {
     uint8_t brightness;
     String selected;
     bool bindMode;
+    bool ble;
 };
 
 namespace storage {

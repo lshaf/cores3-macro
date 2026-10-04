@@ -16,6 +16,8 @@ struct UiModel {
     bool host = false;
     bool gamepad = false;
     bool storageOk = true;
+    bool ble = false;
+    bool outputReady = false;
     bool bindMode = false;
     const Bindings* binds = nullptr;
     uint8_t padPressed = 0;

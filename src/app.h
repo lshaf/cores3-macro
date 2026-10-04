@@ -28,6 +28,8 @@ private:
     void runSelected();
     void stopMacro();
     void setBindMode(bool enabled, uint32_t now);
+    void setTransport(bool ble, uint32_t now);
+    void handleStartButton(uint32_t now);
     void openSetup();
     void closeSetup();
     void beginEdit();
@@ -63,6 +65,9 @@ private:
     Bindings _binds;
     bool _bindMode = false;
     BindSetup _setup;
+    uint32_t _startDownAt = 0;
+    bool _startHeld = false;
+    bool _startConsumed = false;
     MacroRunner _runner;
     Ui _ui;
     MacroStatus _lastStatus;

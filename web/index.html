@@ -322,6 +322,7 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 .d-dot.pad.lit i { background: var(--d-amber); }
 .d-dot.web.lit i { background: var(--d-blue); }
 .d-dot.usb.lit i { background: var(--d-green); }
+.d-dot.usb.ble.lit i { background: var(--d-blue); }
 
 .d-list {
   flex: none;
@@ -1109,7 +1110,7 @@ input:disabled { opacity: 0.5; }
             <span class="d-dots">
               <span class="d-dot pad" id="dotPad"><i></i>PAD</span>
               <span class="d-dot web" id="dotWeb"><i></i>WEB</span>
-              <span class="d-dot usb" id="dotUsb"><i></i>USB</span>
+              <span class="d-dot usb" id="dotUsb"><i></i><span id="dotUsbText">USB</span></span>
             </span>
           </div>
           <div class="d-list" id="dList">
@@ -1317,6 +1318,16 @@ input:disabled { opacity: 0.5; }
         <label for="brightnessInput">Brightness <span class="mono" id="brightnessValue">128</span></label>
         <input type="range" id="brightnessInput" min="5" max="255" step="1" value="128" disabled>
       </div>
+      <div class="field">
+        <label for="transportInput">Keys go out over</label>
+        <div class="field-row">
+          <select id="transportInput" disabled>
+            <option value="usb">USB cable</option>
+            <option value="ble">Bluetooth</option>
+          </select>
+          <span class="unit">hold Start on the device to switch too</span>
+        </div>
+      </div>
     </section>
   </aside>
 </main>
@@ -1427,7 +1438,7 @@ const state = {
   busy: 0,
   device: { name: '', fw: '', usb: false, gamepad: false },
   info: null,
-  config: { screenTimeout: 30, brightness: 128 },
+  config: { screenTimeout: 30, brightness: 128, transport: 'usb' },
   scripts: [],
   selected: '',
   run: { state: 'idle', script: '', line: 0, total: 0, loop: 0, loopCount: 0, loopDepth: 0, elapsed: 0, error: '' },
@@ -1801,6 +1812,11 @@ function applyState(msg) {
     if (key in msg) state.run[key] = msg[key];
   }
   if ('usb' in msg) state.device.usb = !!msg.usb;
+  if ('ready' in msg) state.device.ready = !!msg.ready;
+  if (typeof msg.transport === 'string' && msg.transport !== state.config.transport) {
+    state.config.transport = msg.transport;
+    renderSettings();
+  }
   if ('gamepad' in msg) state.device.gamepad = !!msg.gamepad;
   if ('mode' in msg) setModeState(msg.mode);
   if (state.mode !== modeBefore) {
@@ -1844,6 +1860,7 @@ async function loadConfig() {
     const reply = await request('config');
     if (typeof reply.screenTimeout === 'number') state.config.screenTimeout = reply.screenTimeout;
     if (typeof reply.brightness === 'number') state.config.brightness = reply.brightness;
+    if (typeof reply.transport === 'string') state.config.transport = reply.transport;
   } catch (err) {
     toast('Could not read the device settings: ' + messageFor(err), 'error');
   }
@@ -1864,6 +1881,7 @@ async function applyConfig(set) {
     const reply = await request('config', { set });
     if (typeof reply.screenTimeout === 'number') state.config.screenTimeout = reply.screenTimeout;
     if (typeof reply.brightness === 'number') state.config.brightness = reply.brightness;
+    if (typeof reply.transport === 'string') state.config.transport = reply.transport;
     showSavedNote();
   } catch (err) {
     toast('Could not change the setting: ' + messageFor(err), 'error');
@@ -2381,7 +2399,10 @@ function renderMirror() {
   els.mirrorWrap.classList.toggle('off', !online);
   els.dotPad.classList.toggle('lit', online && state.device.gamepad);
   els.dotWeb.classList.toggle('lit', online);
-  els.dotUsb.classList.toggle('lit', online && state.device.usb);
+  const ble = state.config.transport === 'ble';
+  els.dotUsb.classList.toggle('ble', ble);
+  els.dotUsbText.textContent = ble ? 'BLE' : 'USB';
+  els.dotUsb.classList.toggle('lit', online && (ble ? !!state.device.ready : state.device.usb));
   const runningName = online && run.state === 'running' ? run.script : '';
   const bind = isBindMode();
   els.dMode.hidden = !bind;
@@ -2699,6 +2720,8 @@ function renderSettings() {
   if (document.activeElement !== els.timeoutInput) els.timeoutInput.value = String(state.config.screenTimeout);
   if (document.activeElement !== els.brightnessInput) els.brightnessInput.value = String(state.config.brightness);
   els.brightnessValue.textContent = String(state.config.brightness);
+  els.transportInput.disabled = !online;
+  els.transportInput.value = state.config.transport;
 }
 
 function buildBindRows() {
@@ -2945,6 +2968,9 @@ function bindEvents() {
   els.brightnessInput.addEventListener('change', () => {
     const value = clampNumber(els.brightnessInput.value, 5, 255, state.config.brightness);
     applyConfig({ brightness: value });
+  });
+  els.transportInput.addEventListener('change', () => {
+    applyConfig({ transport: els.transportInput.value === 'ble' ? 'ble' : 'usb' });
   });
 
   document.addEventListener('keydown', event => {

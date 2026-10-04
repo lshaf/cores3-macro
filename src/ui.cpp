@@ -128,7 +128,7 @@ void Ui::drawHeader(const UiModel& model) {
     const Indicator indicators[] = {
         {"PAD", model.gamepad, kAccent},
         {"WEB", model.host, kBlue},
-        {"USB", model.usb, kGreen},
+        {model.ble ? "BLE" : "USB", model.ble ? model.outputReady : model.usb, model.ble ? kBlue : kGreen},
     };
     int x = kW - 10;
     for (const Indicator& ind : indicators) {
@@ -246,7 +246,7 @@ void Ui::drawStatus(const UiModel& model, uint32_t now) {
         _canvas.setTextColor(kText, bg);
         _canvas.drawString("Gamepad acts as a keyboard", 12, line1);
         _canvas.setTextColor(kTextDim, bg);
-        _canvas.drawString("START setup   SELECT macros", 12, line2);
+        _canvas.drawString(model.ble ? "START setup   hold START: USB" : "START setup   hold START: Bluetooth", 12, line2);
         return;
     }
 
@@ -295,7 +295,8 @@ void Ui::drawStatus(const UiModel& model, uint32_t now) {
             _canvas.setTextColor(kText, bg);
             _canvas.drawString("Pick a macro, press A to run it", 12, line1);
             _canvas.setTextColor(kTextDim, bg);
-            _canvas.drawString(model.usb ? "Keys go to the computer on USB" : "Plug USB into a computer first", 12, line2);
+            if (model.ble) _canvas.drawString(model.outputReady ? "Keys go over Bluetooth" : "Bluetooth: pair Core Macro on the computer", 12, line2);
+            else _canvas.drawString(model.usb ? "Keys go to the computer on USB" : "Plug USB into a computer first", 12, line2);
             break;
     }
 }

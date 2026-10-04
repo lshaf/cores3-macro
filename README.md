@@ -35,6 +35,10 @@ The page is a single file with no build step. It talks newline-delimited JSON ov
 - The screen turns off after 30 seconds without a button press (configurable from the web page). Macros keep running with the screen off. The first press after that only wakes the screen.
 - Everything held by a macro (keys, mouse buttons) is released when it ends or is stopped.
 
+## Output: USB or Bluetooth
+
+Keys go out over USB by default. Hold **Start** for about a second (in either mode) to switch to Bluetooth LE and back. In Bluetooth mode the device advertises as "Core Macro"; pair it from the computer or phone like any BLE keyboard. The header dot reads USB or BLE and lights when the link is ready. The choice is remembered across reboots. The serial port and web page keep working over USB in both modes.
+
 ## Bind mode
 
 Press **Select** on the gamepad to switch between Macro mode and Bind mode (the header shows a BIND tag). In Bind mode the gamepad is a keyboard: each of Up, Down, Left, Right, A and B sends one key combo. Start and Select are never bound. Each binding has a behavior:
@@ -100,7 +104,7 @@ END
 | `{"cmd":"select","name":"x"}` | moves the highlight on the device |
 | `{"cmd":"status"}` | state fields |
 | `{"cmd":"check","content":"..."}` | `valid`, `error`, `line` without saving |
-| `{"cmd":"config","set":{"screenTimeout":30,"brightness":150}}` | `screenTimeout` (seconds, 0 = never), `brightness` (5–255) |
+| `{"cmd":"config","set":{"screenTimeout":30,"brightness":150,"transport":"usb"}}` | `screenTimeout` (seconds, 0 = never), `brightness` (5–255), `transport` (`usb` or `ble`) |
 | `{"cmd":"info"}` | `fsUsed`, `fsTotal`, `uptime`, `freeHeap`, `scripts` |
 | `{"cmd":"binds"}` | `mode`, `binds: [{button, keys, script, mode, interval}]` for up, down, left, right, a, b; a macro binding has `mode` `macro` and the `script` name |
 | `{"cmd":"binds","set":[{"button":"a","keys":"ctrl+c","mode":"burst","interval":100}, ...]}` | saves all bindings; `mode` is `normal`, `burst` or `toggle`; errors name the button |
@@ -108,7 +112,7 @@ END
 
 State fields: `state` (`idle`, `running`, `finished`, `stopped`, `error`), `script`, `line`, `total`, `loop`, `loopCount` (-1 = forever), `loopDepth`, `elapsed` (ms), `error`, `usb`, `gamepad`.
 
-State fields also carry `mode` (`macro` or `bind`).
+State fields also carry `mode` (`macro` or `bind`), `transport` (`usb` or `ble`) and `ready` (true when the current link can take keys).
 
 Events: `{"type":"state", ...state fields}` on every transition and about five times per second while running; `{"type":"selected","name":"x"}` when the highlight moves on the device; `{"type":"mode","mode":"bind"}` on a mode switch; `{"type":"pad","pressed":mask,"toggled":mask}` in Bind mode when buttons change (bits: up 1, down 2, left 4, right 8, a 16, b 32); `{"type":"binds","mode":...,"binds":[...]}` after a binding is saved on the device.
 
@@ -121,7 +125,8 @@ src/
   main.cpp        creates the App
   app.cpp/.h      input, serial dispatch, screen power, state fan-out
   macro.cpp/.h    script compiler and the FreeRTOS runner task
-  hid.cpp/.h      USB keyboard / mouse / consumer control, key name table
+  hid.cpp/.h      keyboard / mouse / consumer control dispatcher (USB or BLE), key name table
+  ble_hid.cpp/.h  Bluetooth LE HID device (NimBLE)
   gamepad.cpp/.h  Faces Gamepad3 polling with auto-repeat
   bindings.cpp/.h Bind mode: button to key combo table and hold/burst/toggle engine
   storage.cpp/.h  LittleFS scripts and config
