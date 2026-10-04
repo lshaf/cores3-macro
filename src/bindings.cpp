@@ -11,19 +11,38 @@ namespace {
 constexpr const char* kNames[Bindings::kSlots] = {"up", "down", "left", "right", "a", "b"};
 constexpr uint8_t kMasks[Bindings::kSlots] = {1, 2, 4, 8, 16, 32};
 
-constexpr const char* kPickerKeys[] = {
-    "",       "a",     "b",      "c",       "d",        "e",        "f",         "g",         "h",       "i",
-    "j",      "k",     "l",      "m",       "n",        "o",        "p",         "q",         "r",       "s",
-    "t",      "u",     "v",      "w",       "x",        "y",        "z",         "0",         "1",       "2",
-    "3",      "4",     "5",      "6",       "7",        "8",        "9",         "space",     "enter",   "esc",
-    "tab",    "backspace", "delete", "insert", "home",   "end",      "pageup",    "pagedown",  "up",      "down",
-    "left",   "right", "f1",     "f2",      "f3",       "f4",       "f5",        "f6",        "f7",      "f8",
-    "f9",     "f10",   "f11",    "f12",     "minus",    "equal",    "lbracket",  "rbracket",  "backslash", "semicolon",
-    "quote",  "grave", "comma",  "period",  "slash",    "capslock", "printscreen", "menu",    "kp0",     "kp1",
-    "kp2",    "kp3",   "kp4",    "kp5",     "kp6",      "kp7",      "kp8",       "kp9",       "kpenter", "kpplus",
-    "kpminus",
+constexpr const char* kLetters[] = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+                                    "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"};
+constexpr const char* kNumbers[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
+constexpr const char* kFunction[] = {"f1",  "f2",  "f3",  "f4",  "f5",  "f6",  "f7",  "f8",  "f9",  "f10", "f11", "f12",
+                                     "f13", "f14", "f15", "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23", "f24"};
+constexpr const char* kNavigation[] = {"up", "down", "left", "right", "home", "end", "pageup", "pagedown", "insert", "delete"};
+constexpr const char* kControl[] = {"space", "enter", "esc", "tab", "backspace", "capslock", "printscreen",
+                                    "scrolllock", "pause", "menu", "mute", "volumeup", "volumedown"};
+constexpr const char* kSymbols[] = {"minus", "equal", "lbracket", "rbracket", "backslash", "semicolon",
+                                    "quote", "grave", "comma", "period", "slash"};
+constexpr const char* kNumpad[] = {"kp0", "kp1", "kp2", "kp3", "kp4", "kp5", "kp6", "kp7", "kp8", "kp9",
+                                   "kpenter", "kpplus", "kpminus", "kpasterisk", "kpslash", "kpdot", "numlock"};
+
+struct KeyGroup {
+    const char* name;
+    const char* const* keys;
+    int count;
 };
-constexpr int kPickerKeyCount = sizeof(kPickerKeys) / sizeof(kPickerKeys[0]);
+
+#define KEY_GROUP(label, arr) {label, arr, static_cast<int>(sizeof(arr) / sizeof(arr[0]))}
+constexpr KeyGroup kGroups[] = {
+    {"none", nullptr, 0},
+    KEY_GROUP("letters", kLetters),
+    KEY_GROUP("numbers", kNumbers),
+    KEY_GROUP("function", kFunction),
+    KEY_GROUP("navigation", kNavigation),
+    KEY_GROUP("control", kControl),
+    KEY_GROUP("symbols", kSymbols),
+    KEY_GROUP("numpad", kNumpad),
+};
+#undef KEY_GROUP
+constexpr int kGroupCount = sizeof(kGroups) / sizeof(kGroups[0]);
 
 constexpr const char* kModifiers[] = {
     "", "ctrl", "shift", "alt", "gui", "ctrl+shift", "ctrl+alt", "alt+shift", "gui+shift", "ctrl+alt+shift",
@@ -88,12 +107,22 @@ bool Bindings::behaviorFromName(const char* name, BindBehavior& out) {
     return false;
 }
 
-int Bindings::pickerKeyCount() {
-    return kPickerKeyCount;
+int Bindings::groupCount() {
+    return kGroupCount;
 }
 
-const char* Bindings::pickerKey(int index) {
-    return (index >= 0 && index < kPickerKeyCount) ? kPickerKeys[index] : "";
+const char* Bindings::groupName(int group) {
+    return (group >= 0 && group < kGroupCount) ? kGroups[group].name : "";
+}
+
+int Bindings::groupKeyCount(int group) {
+    return (group >= 0 && group < kGroupCount) ? kGroups[group].count : 0;
+}
+
+const char* Bindings::groupKey(int group, int index) {
+    if (group < 0 || group >= kGroupCount) return "";
+    const KeyGroup& g = kGroups[group];
+    return (index >= 0 && index < g.count) ? g.keys[index] : "";
 }
 
 int Bindings::modifierCount() {
@@ -104,7 +133,8 @@ const char* Bindings::modifierName(int index) {
     return (index >= 0 && index < kModifierCount) ? kModifiers[index] : "";
 }
 
-void Bindings::split(const String& keys, int& keyIndex, int& modIndex) {
+void Bindings::split(const String& keys, int& group, int& keyIndex, int& modIndex) {
+    group = 0;
     keyIndex = 0;
     modIndex = 0;
     String mods;
@@ -127,10 +157,13 @@ void Bindings::split(const String& keys, int& keyIndex, int& modIndex) {
         else token += c;
     }
     flush();
-    for (int i = 0; i < kPickerKeyCount; ++i) {
-        if (mainKey == kPickerKeys[i]) {
-            keyIndex = i;
-            break;
+    for (int g = 1; g < kGroupCount && group == 0; ++g) {
+        for (int i = 0; i < kGroups[g].count; ++i) {
+            if (mainKey == kGroups[g].keys[i]) {
+                group = g;
+                keyIndex = i;
+                break;
+            }
         }
     }
     String normalized = mods;
@@ -145,9 +178,9 @@ void Bindings::split(const String& keys, int& keyIndex, int& modIndex) {
     }
 }
 
-String Bindings::compose(int keyIndex, int modIndex) {
+String Bindings::compose(int group, int keyIndex, int modIndex) {
     String mods(modifierName(modIndex));
-    String key(pickerKey(keyIndex));
+    String key(groupKey(group, keyIndex));
     if (mods.length() && key.length()) return mods + "+" + key;
     return mods.length() ? mods : key;
 }

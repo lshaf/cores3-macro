@@ -18,6 +18,7 @@ struct BindSetup {
     bool editing = false;
     int row = 0;
     int field = 0;
+    int group = 0;
     int keyIndex = 0;
     int modIndex = 0;
     BindBehavior behavior = BindBehavior::Normal;
@@ -27,19 +28,21 @@ struct BindSetup {
 class Bindings {
 public:
     static constexpr int kSlots = 6;
-    static constexpr int kSetupFields = 4;
+    static constexpr int kSetupFields = 5;
 
     static const char* buttonName(int slot);
     static uint8_t buttonMask(int slot);
     static int slotForName(const char* name);
     static const char* behaviorName(BindBehavior behavior);
     static bool behaviorFromName(const char* name, BindBehavior& out);
-    static int pickerKeyCount();
-    static const char* pickerKey(int index);
+    static int groupCount();
+    static const char* groupName(int group);
+    static int groupKeyCount(int group);
+    static const char* groupKey(int group, int index);
     static int modifierCount();
     static const char* modifierName(int index);
-    static void split(const String& keys, int& keyIndex, int& modIndex);
-    static String compose(int keyIndex, int modIndex);
+    static void split(const String& keys, int& group, int& keyIndex, int& modIndex);
+    static String compose(int group, int keyIndex, int modIndex);
 
     void load();
     bool save() const;

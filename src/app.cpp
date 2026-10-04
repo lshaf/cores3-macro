@@ -194,7 +194,7 @@ void App::closeSetup() {
 
 void App::beginEdit() {
     const Binding& b = _binds.slot(_setup.row);
-    Bindings::split(b.keys, _setup.keyIndex, _setup.modIndex);
+    Bindings::split(b.keys, _setup.group, _setup.keyIndex, _setup.modIndex);
     _setup.behavior = b.behavior;
     _setup.interval = b.intervalMs;
     _setup.field = 0;
@@ -204,7 +204,7 @@ void App::beginEdit() {
 
 void App::commitEdit(uint32_t now) {
     String err;
-    const String keys = Bindings::compose(_setup.keyIndex, _setup.modIndex);
+    const String keys = Bindings::compose(_setup.group, _setup.keyIndex, _setup.modIndex);
     if (_binds.setSlot(_setup.row, keys, _setup.behavior, static_cast<uint16_t>(_setup.interval), err)) {
         _binds.save();
         sendBinds();
@@ -217,21 +217,27 @@ void App::commitEdit(uint32_t now) {
 void App::adjustField(int delta) {
     switch (_setup.field) {
         case 0: {
-            const int n = Bindings::pickerKeyCount();
-            _setup.keyIndex = (_setup.keyIndex + delta % n + n) % n;
+            const int n = Bindings::groupCount();
+            _setup.group = (_setup.group + delta % n + n) % n;
+            _setup.keyIndex = 0;
             break;
         }
         case 1: {
+            const int n = Bindings::groupKeyCount(_setup.group);
+            if (n > 0) _setup.keyIndex = (_setup.keyIndex + delta % n + n) % n;
+            break;
+        }
+        case 2: {
             const int n = Bindings::modifierCount();
             _setup.modIndex = (_setup.modIndex + delta % n + n) % n;
             break;
         }
-        case 2: {
+        case 3: {
             int v = (static_cast<int>(_setup.behavior) + delta % 3 + 3) % 3;
             _setup.behavior = static_cast<BindBehavior>(v);
             break;
         }
-        case 3: {
+        case 4: {
             int v = _setup.interval + delta * 10;
             if (v < 20) v = 20;
             if (v > 5000) v = 5000;
@@ -251,9 +257,22 @@ void App::handleSetupInput(uint32_t now) {
         _dirty = true;
         return;
     }
-    const int fields = _setup.behavior == BindBehavior::Burst ? Bindings::kSetupFields : Bindings::kSetupFields - 1;
-    if (_pad.fired(PAD_UP)) _setup.field = (_setup.field + fields - 1) % fields;
-    if (_pad.fired(PAD_DOWN)) _setup.field = (_setup.field + 1) % fields;
+    auto enabled = [&](int field) {
+        if (field == 1) return _setup.group != 0;
+        if (field == 4) return _setup.behavior == BindBehavior::Burst;
+        return true;
+    };
+    auto step = [&](int delta) {
+        int f = _setup.field;
+        for (int i = 0; i < Bindings::kSetupFields; ++i) {
+            f = (f + delta + Bindings::kSetupFields) % Bindings::kSetupFields;
+            if (enabled(f)) break;
+        }
+        _setup.field = f;
+    };
+    if (_pad.fired(PAD_UP)) step(-1);
+    if (_pad.fired(PAD_DOWN)) step(1);
+    if (!enabled(_setup.field)) step(1);
     if (_pad.fired(PAD_LEFT)) adjustField(-1);
     if (_pad.fired(PAD_RIGHT)) adjustField(1);
     if (_pad.fired(PAD_A)) commitEdit(now);

@@ -222,7 +222,7 @@ void Ui::drawStatus(const UiModel& model, uint32_t now) {
 
     if (model.bindMode && model.setup && model.setup->open) {
         if (model.setup->editing) {
-            const String combo = Bindings::compose(model.setup->keyIndex, model.setup->modIndex);
+            const String combo = Bindings::compose(model.setup->group, model.setup->keyIndex, model.setup->modIndex);
             String preview = combo.length() ? combo : String("unbound");
             if (combo.length()) {
                 preview += "   ";
@@ -402,24 +402,26 @@ void Ui::drawSetupEdit(const UiModel& model) {
     title.toUpperCase();
     _canvas.setTextDatum(textdatum_t::middle_left);
     _canvas.setTextColor(kAccent, kBg);
-    _canvas.drawString("Edit " + title, 12, kListY + 14);
+    _canvas.drawString("Edit " + title, 12, kListY + 12);
 
     struct Field {
         const char* label;
         String value;
         bool enabled;
     };
-    const char* keyName = Bindings::pickerKey(s.keyIndex);
+    const char* keyName = Bindings::groupKey(s.group, s.keyIndex);
     const char* modName = Bindings::modifierName(s.modIndex);
+    const bool hasGroup = s.group != 0;
     const Field fields[Bindings::kSetupFields] = {
-        {"Key", keyName[0] ? String(keyName) : String("none"), true},
+        {"Group", String(Bindings::groupName(s.group)), true},
+        {"Key", hasGroup ? String(keyName) : String("-"), hasGroup},
         {"Modifier", modName[0] ? String(modName) : String("none"), true},
         {"Behavior", s.behavior == BindBehavior::Normal ? String("hold") : String(Bindings::behaviorName(s.behavior)), true},
         {"Interval", String(s.interval) + " ms", s.behavior == BindBehavior::Burst},
     };
-    constexpr int rowH = 28;
+    constexpr int rowH = 24;
     for (int i = 0; i < Bindings::kSetupFields; ++i) {
-        const int y = kListY + 28 + i * rowH;
+        const int y = kListY + 24 + i * rowH;
         const bool selected = s.field == i && fields[i].enabled;
         const uint32_t rowBg = selected ? kRowSel : kBg;
         if (selected) {
