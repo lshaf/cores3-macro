@@ -920,6 +920,11 @@ select {
 
 select:disabled { opacity: 0.5; }
 
+.bind-script {
+  min-width: 0;
+  width: 100%;
+}
+
 .bind-interval {
   grid-column: 2 / -1;
   display: flex;
@@ -1351,8 +1356,8 @@ const NAME_RULE = '1 to 32 characters: letters, digits, spaces and _ - . ( ). No
 const BIND_BUTTONS = ['up', 'down', 'left', 'right', 'a', 'b'];
 const BIND_LABELS = { up: 'Up', down: 'Down', left: 'Left', right: 'Right', a: 'A', b: 'B' };
 const BIND_MASKS = { up: 1, down: 2, left: 4, right: 8, a: 16, b: 32 };
-const BIND_MODES = [['normal', 'Hold'], ['burst', 'Burst'], ['toggle', 'Toggle']];
-const BIND_WORDS = { normal: 'hold', burst: 'burst', toggle: 'toggle' };
+const BIND_MODES = [['normal', 'Hold'], ['burst', 'Burst'], ['toggle', 'Toggle'], ['toggleburst', 'Toggle burst'], ['macro', 'Run macro']];
+const BIND_WORDS = { normal: 'hold', burst: 'burst', toggle: 'toggle', toggleburst: 'toggleburst', macro: 'macro' };
 const INTERVAL_MIN = 20;
 const INTERVAL_MAX = 5000;
 const INTERVAL_DEFAULT = 100;
@@ -1831,6 +1836,7 @@ async function refreshList() {
   renderInfo();
   renderNameHint();
   renderEditorActions();
+  renderBinds();
 }
 
 async function loadConfig() {
@@ -1878,7 +1884,7 @@ function showBindsSaved() {
 }
 
 function defaultBinds() {
-  return BIND_BUTTONS.map(button => ({ button, keys: '', mode: 'normal', interval: INTERVAL_DEFAULT }));
+  return BIND_BUTTONS.map(button => ({ button, keys: '', script: '', mode: 'normal', interval: INTERVAL_DEFAULT }));
 }
 
 function normalizeBinds(list) {
@@ -1891,10 +1897,31 @@ function normalizeBinds(list) {
     return {
       button,
       keys: typeof b.keys === 'string' ? b.keys : '',
+      script: typeof b.script === 'string' ? b.script : '',
       mode: BIND_WORDS[b.mode] ? b.mode : 'normal',
       interval: clampNumber(b.interval, INTERVAL_MIN, INTERVAL_MAX, INTERVAL_DEFAULT)
     };
   });
+}
+
+function isMacroBind(b) {
+  return !!b && b.mode === 'macro';
+}
+
+function bindPayload(b) {
+  const macro = isMacroBind(b);
+  return {
+    button: b.button,
+    keys: macro ? '' : b.keys.trim(),
+    script: macro ? b.script : '',
+    mode: b.mode,
+    interval: b.interval
+  };
+}
+
+function bindText(b) {
+  if (isMacroBind(b)) return b.script ? 'run ' + b.script : '';
+  return b.keys;
 }
 
 function cloneBinds(list) {
@@ -1905,7 +1932,11 @@ function bindsDirty() {
   const saved = state.binds;
   const draft = state.bindDraft;
   if (!saved || !draft) return false;
-  return draft.some((d, i) => d.keys.trim() !== saved[i].keys || d.mode !== saved[i].mode || d.interval !== saved[i].interval);
+  return draft.some((d, i) => {
+    const a = bindPayload(d);
+    const b = saved[i];
+    return a.keys !== b.keys || a.script !== b.script || a.mode !== b.mode || a.interval !== b.interval;
+  });
 }
 
 function setModeState(mode) {
@@ -1943,10 +1974,16 @@ async function loadBinds() {
 
 async function saveBinds() {
   if (!state.connected || !state.bindDraft || bindSaving) return;
+  const missing = state.bindDraft.find(b => isMacroBind(b) && !b.script);
+  if (missing) {
+    state.bindError = 'Button ' + BIND_LABELS[missing.button] + ': pick a macro';
+    renderBinds();
+    return;
+  }
   bindSaving = true;
   renderBinds();
   try {
-    const set = state.bindDraft.map(b => ({ button: b.button, keys: b.keys.trim(), mode: b.mode, interval: b.interval }));
+    const set = state.bindDraft.map(bindPayload);
     const reply = await request('binds', { set });
     state.binds = normalizeBinds(reply.binds);
     state.bindDraft = cloneBinds(state.binds);
@@ -2399,11 +2436,13 @@ function renderBindMirror() {
   const binds = state.binds || defaultBinds();
   bindMirrorRows.forEach((slot, i) => {
     const b = binds[i];
-    const toggledOn = b.mode === 'toggle' && padToggled(b.button);
+    const macro = isMacroBind(b);
+    const text = bindText(b);
+    const toggledOn = (macro || b.mode === 'toggle' || b.mode === 'toggleburst') && padToggled(b.button);
     slot.row.classList.toggle('pressed', padPressed(b.button));
-    slot.keys.textContent = b.keys || 'unbound';
-    slot.keys.classList.toggle('unbound', !b.keys);
-    slot.mode.textContent = toggledOn ? 'toggle ON' : BIND_WORDS[b.mode];
+    slot.keys.textContent = text || 'unbound';
+    slot.keys.classList.toggle('unbound', !text);
+    slot.mode.textContent = toggledOn ? (macro ? 'macro ON' : 'toggle ON') : BIND_WORDS[b.mode];
     slot.mode.classList.toggle('on', toggledOn);
   });
 }
@@ -2411,8 +2450,8 @@ function renderBindMirror() {
 function captionText() {
   if (!state.connected) return 'Not connected';
   if (state.mode === 'bind') {
-    const pressed = (state.binds || []).filter(b => b.keys && padPressed(b.button));
-    if (pressed.length) return 'Pressing ' + pressed.map(b => BIND_LABELS[b.button] + ' (' + b.keys + ')').join(', ');
+    const pressed = (state.binds || []).filter(b => bindText(b) && padPressed(b.button));
+    if (pressed.length) return 'Pressing ' + pressed.map(b => BIND_LABELS[b.button] + ' (' + bindText(b) + ')').join(', ');
     return 'Bind mode: gamepad sends keys';
   }
   const run = state.run;
@@ -2675,6 +2714,12 @@ function buildBindRows() {
     keys.autocomplete = 'off';
     keys.spellcheck = false;
     keys.disabled = true;
+    const scriptId = 'bindScript-' + button;
+    const script = el('select', 'bind-script');
+    script.id = scriptId;
+    script.setAttribute('aria-label', BIND_LABELS[button] + ' macro');
+    script.disabled = true;
+    script.hidden = true;
     const mode = el('select', 'bind-mode');
     mode.setAttribute('aria-label', BIND_LABELS[button] + ' behavior');
     for (const [value, text] of BIND_MODES) mode.appendChild(new Option(text, value));
@@ -2689,9 +2734,9 @@ function buildBindRows() {
     interval.disabled = true;
     intervalWrap.append(interval, el('span', 'unit', 'ms between taps'));
     intervalWrap.hidden = true;
-    row.append(label, keys, mode, intervalWrap);
+    row.append(label, keys, script, mode, intervalWrap);
     els.bindRows.appendChild(row);
-    bindRows.push({ button, row, keys, mode, interval, intervalWrap });
+    bindRows.push({ button, row, label, inputId, scriptId, keys, script, scriptKey: '', mode, interval, intervalWrap });
     const draft = () => (state.bindDraft ? state.bindDraft[i] : null);
     keys.addEventListener('input', () => {
       const d = draft();
@@ -2703,6 +2748,12 @@ function buildBindRows() {
       const d = draft();
       if (!d) return;
       d.mode = mode.value;
+      renderBinds();
+    });
+    script.addEventListener('change', () => {
+      const d = draft();
+      if (!d) return;
+      d.script = script.value;
       renderBinds();
     });
     interval.addEventListener('change', () => {
@@ -2721,19 +2772,49 @@ function renderBinds() {
   const ready = online && !!draft && !bindSaving;
   bindRows.forEach((slot, i) => {
     const d = draft ? draft[i] : null;
+    const macro = isMacroBind(d);
     slot.keys.disabled = !ready;
+    slot.script.disabled = !ready;
     slot.mode.disabled = !ready;
     slot.interval.disabled = !ready;
+    slot.keys.hidden = macro;
+    slot.script.hidden = !macro;
+    slot.label.htmlFor = macro ? slot.scriptId : slot.inputId;
     const keys = d ? d.keys : '';
     if (slot.keys.value !== keys) slot.keys.value = keys;
+    renderBindScriptOptions(slot, d ? d.script : '');
     slot.mode.value = d ? d.mode : 'normal';
     const interval = String(d ? d.interval : INTERVAL_DEFAULT);
     if (document.activeElement !== slot.interval && slot.interval.value !== interval) slot.interval.value = interval;
-    slot.intervalWrap.hidden = !d || d.mode !== 'burst';
+    slot.intervalWrap.hidden = !d || (d.mode !== 'burst' && d.mode !== 'toggleburst');
   });
   els.bindError.textContent = state.bindError;
   els.bindError.hidden = !state.bindError;
   renderBindMarks();
+}
+
+function renderBindScriptOptions(slot, script) {
+  const names = state.scripts.map(s => s.name);
+  const stale = !!script && !names.includes(script);
+  const key = JSON.stringify([names, stale ? script : '', !script]);
+  if (slot.scriptKey !== key) {
+    slot.scriptKey = key;
+    slot.script.textContent = '';
+    if (names.length === 0 && !stale) {
+      const none = new Option('No macros on device', '');
+      none.disabled = true;
+      slot.script.appendChild(none);
+    } else {
+      if (!script) {
+        const pick = new Option('Pick a macro', '');
+        pick.disabled = true;
+        slot.script.appendChild(pick);
+      }
+      if (stale) slot.script.appendChild(new Option(script, script));
+      for (const name of names) slot.script.appendChild(new Option(name, name));
+    }
+  }
+  slot.script.value = script;
 }
 
 function renderBindMarks() {

@@ -7,12 +7,20 @@
 #include <USBHIDMouse.h>
 #include <strings.h>
 #include <tusb.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 namespace {
 
 USBHIDKeyboard keyboard;
 USBHIDMouse mouse;
 USBHIDConsumerControl consumer;
+SemaphoreHandle_t hidLock = nullptr;
+
+struct Guard {
+    Guard() { if (hidLock) xSemaphoreTakeRecursive(hidLock, portMAX_DELAY); }
+    ~Guard() { if (hidLock) xSemaphoreGiveRecursive(hidLock); }
+};
 
 struct NamedCode {
     const char* name;
@@ -109,6 +117,7 @@ int8_t clampStep(int value) {
 }
 
 void hid::begin() {
+    hidLock = xSemaphoreCreateRecursiveMutex();
     keyboard.begin();
     mouse.begin();
     consumer.begin();
@@ -184,24 +193,29 @@ bool hid::parseCombo(const String& text, uint8_t* codes, uint8_t maxCodes, uint8
 }
 
 void hid::pressKey(uint8_t code) {
+    Guard guard;
     keyboard.pressRaw(code);
 }
 
 void hid::releaseKey(uint8_t code) {
+    Guard guard;
     keyboard.releaseRaw(code);
 }
 
 void hid::releaseAll() {
+    Guard guard;
     keyboard.releaseAll();
     mouse.release(MOUSE_BTN_LEFT | MOUSE_BTN_RIGHT | MOUSE_BTN_MIDDLE);
     consumer.release();
 }
 
 void hid::typeChar(char c) {
+    Guard guard;
     keyboard.write(static_cast<uint8_t>(c));
 }
 
 void hid::mouseMove(int dx, int dy) {
+    Guard guard;
     while (dx != 0 || dy != 0) {
         const int8_t sx = clampStep(dx);
         const int8_t sy = clampStep(dy);
@@ -212,6 +226,7 @@ void hid::mouseMove(int dx, int dy) {
 }
 
 void hid::mouseScroll(int amount) {
+    Guard guard;
     while (amount != 0) {
         const int8_t step = clampStep(amount);
         mouse.move(0, 0, step, 0);
@@ -220,18 +235,22 @@ void hid::mouseScroll(int amount) {
 }
 
 void hid::mousePress(uint8_t button) {
+    Guard guard;
     mouse.press(button);
 }
 
 void hid::mouseRelease(uint8_t button) {
+    Guard guard;
     mouse.release(button);
 }
 
 void hid::mouseClick(uint8_t button) {
+    Guard guard;
     mouse.click(button);
 }
 
 void hid::consumerTap(uint16_t usage) {
+    Guard guard;
     consumer.press(usage);
     delay(10);
     consumer.release();

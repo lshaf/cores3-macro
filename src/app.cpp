@@ -49,7 +49,7 @@ void App::setup() {
     _config = storage::loadConfig();
     applyBrightness();
     _binds.load();
-    _bindMode = _config.bindMode;
+    _bindMode = false;
 
     hid::begin();
     serial_api::begin();
@@ -59,7 +59,6 @@ void App::setup() {
 
     refreshScripts();
     selectByName(_config.selected);
-    if (_bindMode) _binds.activate();
     _configDirty = false;
     _lastActivity = millis();
     _dirty = true;
@@ -162,6 +161,22 @@ void App::stopMacro() {
     _dirty = true;
 }
 
+bool App::isRunning(const String& script) {
+    return _runner.running() && _runner.snapshot().script == script;
+}
+
+bool App::exists(const String& script) {
+    return storage::exists(script);
+}
+
+void App::run(const String& script) {
+    String source;
+    if (!storage::read(script, source)) return;
+    ParseError err;
+    _runner.start(script, source, err);
+    _dirty = true;
+}
+
 void App::setBindMode(bool enabled, uint32_t now) {
     if (enabled == _bindMode) return;
     _bindMode = enabled;
@@ -171,10 +186,8 @@ void App::setBindMode(bool enabled, uint32_t now) {
         _binds.activate();
     } else {
         _binds.deactivate();
+        stopMacro();
     }
-    _config.bindMode = enabled;
-    _configDirty = true;
-    _configDirtyAt = now;
     _dirty = true;
     sendMode();
 }
@@ -195,6 +208,13 @@ void App::closeSetup() {
 void App::beginEdit() {
     const Binding& b = _binds.slot(_setup.row);
     Bindings::split(b.keys, _setup.group, _setup.keyIndex, _setup.modIndex);
+    if (b.script.length()) {
+        _setup.group = Bindings::kMacroGroup;
+        _setup.keyIndex = 0;
+        for (size_t i = 0; i < _scripts.size(); ++i) {
+            if (_scripts[i].name == b.script) _setup.keyIndex = static_cast<int>(i);
+        }
+    }
     _setup.behavior = b.behavior;
     _setup.interval = b.intervalMs;
     _setup.field = 0;
@@ -205,7 +225,13 @@ void App::beginEdit() {
 void App::commitEdit(uint32_t now) {
     String err;
     const String keys = Bindings::compose(_setup.group, _setup.keyIndex, _setup.modIndex);
-    if (_binds.setSlot(_setup.row, keys, _setup.behavior, static_cast<uint16_t>(_setup.interval), err)) {
+    bool ok = false;
+    if (_setup.group == Bindings::kMacroGroup) {
+        if (_setup.keyIndex >= 0 && _setup.keyIndex < static_cast<int>(_scripts.size())) ok = _binds.setSlotMacro(_setup.row, _scripts[_setup.keyIndex].name);
+    } else {
+        ok = _binds.setSlot(_setup.row, keys, _setup.behavior, static_cast<uint16_t>(_setup.interval), err);
+    }
+    if (ok) {
         _binds.save();
         sendBinds();
     }
@@ -223,7 +249,7 @@ void App::adjustField(int delta) {
             break;
         }
         case 1: {
-            const int n = Bindings::groupKeyCount(_setup.group);
+            const int n = _setup.group == Bindings::kMacroGroup ? static_cast<int>(_scripts.size()) : Bindings::groupKeyCount(_setup.group);
             if (n > 0) _setup.keyIndex = (_setup.keyIndex + delta % n + n) % n;
             break;
         }
@@ -233,7 +259,7 @@ void App::adjustField(int delta) {
             break;
         }
         case 3: {
-            int v = (static_cast<int>(_setup.behavior) + delta % 3 + 3) % 3;
+            int v = (static_cast<int>(_setup.behavior) + delta % kBindBehaviorCount + kBindBehaviorCount) % kBindBehaviorCount;
             _setup.behavior = static_cast<BindBehavior>(v);
             break;
         }
@@ -259,7 +285,8 @@ void App::handleSetupInput(uint32_t now) {
     }
     auto enabled = [&](int field) {
         if (field == 1) return _setup.group != 0;
-        if (field == 4) return _setup.behavior == BindBehavior::Burst;
+        if (_setup.group == Bindings::kMacroGroup) return field == 0 || field == 1;
+        if (field == 4) return _setup.behavior == BindBehavior::Burst || _setup.behavior == BindBehavior::ToggleBurst;
         return true;
     };
     auto step = [&](int delta) {
@@ -326,7 +353,7 @@ void App::handleInput(uint32_t now) {
         }
     }
     if (_bindMode && !_setup.open) {
-        _binds.update(static_cast<uint8_t>(_pad.pressedMask() & ~(PAD_SELECT | PAD_START)), now);
+        _binds.update(static_cast<uint8_t>(_pad.pressedMask() & ~(PAD_SELECT | PAD_START)), now, *this);
         if (_binds.takeChanged()) {
             _dirty = true;
             sendPad();

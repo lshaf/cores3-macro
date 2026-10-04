@@ -222,12 +222,13 @@ void Ui::drawStatus(const UiModel& model, uint32_t now) {
 
     if (model.bindMode && model.setup && model.setup->open) {
         if (model.setup->editing) {
-            const String combo = Bindings::compose(model.setup->group, model.setup->keyIndex, model.setup->modIndex);
+            const bool macroEdit = model.setup->group == Bindings::kMacroGroup;
+            const String combo = macroEdit ? String("run macro, press again to stop") : Bindings::compose(model.setup->group, model.setup->keyIndex, model.setup->modIndex);
             String preview = combo.length() ? combo : String("unbound");
-            if (combo.length()) {
+            if (combo.length() && !macroEdit) {
                 preview += "   ";
                 preview += model.setup->behavior == BindBehavior::Normal ? "hold" : Bindings::behaviorName(model.setup->behavior);
-                if (model.setup->behavior == BindBehavior::Burst) preview += " " + String(model.setup->interval) + "ms";
+                if (model.setup->behavior == BindBehavior::Burst || model.setup->behavior == BindBehavior::ToggleBurst) preview += " " + String(model.setup->interval) + "ms";
             }
             _canvas.setTextColor(kAccent, bg);
             _canvas.drawString(preview, 12, line1);
@@ -351,12 +352,13 @@ void Ui::drawBinds(const UiModel& model) {
         _canvas.drawString(label, 10, y + rowH / 2);
 
         const Binding* b = model.binds ? &model.binds->slot(i) : nullptr;
-        const bool bound = b && b->codeCount > 0;
+        const bool macro = b && b->script.length() > 0;
+        const bool bound = macro || (b && b->codeCount > 0);
         _canvas.setTextColor(bound ? kText : kTextDim, rowBg);
-        _canvas.drawString(bound ? fitText(b->keys, 150) : String("unbound"), 70, y + rowH / 2);
+        _canvas.drawString(bound ? fitText(macro ? "run " + b->script : b->keys, 150) : String("unbound"), 70, y + rowH / 2);
 
         if (bound) {
-            String tag = b->behavior == BindBehavior::Normal ? "hold" : Bindings::behaviorName(b->behavior);
+            String tag = macro ? "macro" : (b->behavior == BindBehavior::Normal ? "hold" : Bindings::behaviorName(b->behavior));
             if (toggled) tag += " ON";
             _canvas.setTextDatum(textdatum_t::middle_right);
             _canvas.setTextColor(toggled ? kGreen : kTextDim, rowBg);
@@ -383,12 +385,13 @@ void Ui::drawSetupList(const UiModel& model) {
         _canvas.setTextColor(kAccent, rowBg);
         _canvas.drawString(label, 10, y + rowH / 2);
         const Binding& b = model.binds->slot(i);
-        const bool bound = b.codeCount > 0;
+        const bool macro = b.script.length() > 0;
+        const bool bound = macro || b.codeCount > 0;
         _canvas.setTextColor(bound ? (selected ? kTextBright : kText) : kTextDim, rowBg);
-        _canvas.drawString(bound ? fitText(b.keys, 150) : String("unbound"), 70, y + rowH / 2);
+        _canvas.drawString(bound ? fitText(macro ? "run " + b.script : b.keys, 150) : String("unbound"), 70, y + rowH / 2);
         if (bound) {
-            String tag = b.behavior == BindBehavior::Normal ? "hold" : Bindings::behaviorName(b.behavior);
-            if (b.behavior == BindBehavior::Burst) tag += " " + String(b.intervalMs) + "ms";
+            String tag = macro ? "macro" : (b.behavior == BindBehavior::Normal ? "hold" : Bindings::behaviorName(b.behavior));
+            if (b.behavior == BindBehavior::Burst || b.behavior == BindBehavior::ToggleBurst) tag += " " + String(b.intervalMs) + "ms";
             _canvas.setTextDatum(textdatum_t::middle_right);
             _canvas.setTextColor(kTextDim, rowBg);
             _canvas.drawString(tag, kW - 12, y + rowH / 2);
@@ -412,12 +415,15 @@ void Ui::drawSetupEdit(const UiModel& model) {
     const char* keyName = Bindings::groupKey(s.group, s.keyIndex);
     const char* modName = Bindings::modifierName(s.modIndex);
     const bool hasGroup = s.group != 0;
+    const bool macro = s.group == Bindings::kMacroGroup;
+    const int scriptCount = model.scripts ? static_cast<int>(model.scripts->size()) : 0;
+    String scriptName = scriptCount == 0 ? String("no macros") : (*model.scripts)[s.keyIndex < scriptCount ? s.keyIndex : 0].name;
     const Field fields[Bindings::kSetupFields] = {
         {"Group", String(Bindings::groupName(s.group)), true},
-        {"Key", hasGroup ? String(keyName) : String("-"), hasGroup},
-        {"Modifier", modName[0] ? String(modName) : String("none"), true},
-        {"Behavior", s.behavior == BindBehavior::Normal ? String("hold") : String(Bindings::behaviorName(s.behavior)), true},
-        {"Interval", String(s.interval) + " ms", s.behavior == BindBehavior::Burst},
+        {macro ? "Script" : "Key", macro ? fitText(scriptName, 170) : (hasGroup ? String(keyName) : String("-")), hasGroup},
+        {"Modifier", macro ? String("-") : (modName[0] ? String(modName) : String("none")), !macro},
+        {"Behavior", macro ? String("toggle") : (s.behavior == BindBehavior::Normal ? String("hold") : String(Bindings::behaviorName(s.behavior))), !macro},
+        {"Interval", String(s.interval) + " ms", !macro && (s.behavior == BindBehavior::Burst || s.behavior == BindBehavior::ToggleBurst)},
     };
     constexpr int rowH = 24;
     for (int i = 0; i < Bindings::kSetupFields; ++i) {

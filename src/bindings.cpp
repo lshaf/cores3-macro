@@ -33,6 +33,7 @@ struct KeyGroup {
 #define KEY_GROUP(label, arr) {label, arr, static_cast<int>(sizeof(arr) / sizeof(arr[0]))}
 constexpr KeyGroup kGroups[] = {
     {"none", nullptr, 0},
+    {"macro", nullptr, 0},
     KEY_GROUP("letters", kLetters),
     KEY_GROUP("numbers", kNumbers),
     KEY_GROUP("function", kFunction),
@@ -85,6 +86,7 @@ const char* Bindings::behaviorName(BindBehavior behavior) {
     switch (behavior) {
         case BindBehavior::Burst: return "burst";
         case BindBehavior::Toggle: return "toggle";
+        case BindBehavior::ToggleBurst: return "toggleburst";
         case BindBehavior::Normal:
         default: return "normal";
     }
@@ -102,6 +104,10 @@ bool Bindings::behaviorFromName(const char* name, BindBehavior& out) {
     }
     if (strcasecmp(name, "toggle") == 0) {
         out = BindBehavior::Toggle;
+        return true;
+    }
+    if (strcasecmp(name, "toggleburst") == 0 || strcasecmp(name, "toggle_burst") == 0 || strcasecmp(name, "toggle-burst") == 0) {
+        out = BindBehavior::ToggleBurst;
         return true;
     }
     return false;
@@ -201,6 +207,15 @@ bool Bindings::setSlot(int slot, const String& keys, BindBehavior behavior, uint
     return true;
 }
 
+bool Bindings::setSlotMacro(int slot, const String& script) {
+    if (slot < 0 || slot >= kSlots || script.length() == 0) return false;
+    Binding next;
+    next.script = script;
+    next.behavior = BindBehavior::Toggle;
+    _slots[slot] = next;
+    return true;
+}
+
 bool Bindings::compile(Binding& binding, String& err) {
     binding.codeCount = 0;
     binding.keys.trim();
@@ -237,7 +252,20 @@ bool Bindings::applyJson(JsonArrayConst list, String& err) {
         if (slot < 0) continue;
         Binding& b = next[slot];
         b.keys = item["keys"] | "";
-        if (!behaviorFromName(item["mode"] | "normal", b.behavior)) {
+        b.script = item["script"] | "";
+        b.script.trim();
+        const char* modeName = item["mode"] | "normal";
+        if (strcasecmp(modeName, "macro") == 0) {
+            if (b.script.length() == 0) {
+                err = "Button " + labelFor(slot) + ": pick a macro";
+                return false;
+            }
+            b.keys = "";
+            b.behavior = BindBehavior::Toggle;
+            continue;
+        }
+        b.script = "";
+        if (!behaviorFromName(modeName, b.behavior)) {
             err = "Button " + labelFor(slot) + ": mode must be normal, burst or toggle";
             return false;
         }
@@ -260,7 +288,8 @@ void Bindings::toJson(JsonArray out) const {
         JsonObject item = out.add<JsonObject>();
         item["button"] = kNames[i];
         item["keys"] = _slots[i].keys;
-        item["mode"] = behaviorName(_slots[i].behavior);
+        item["script"] = _slots[i].script;
+        item["mode"] = _slots[i].script.length() ? "macro" : behaviorName(_slots[i].behavior);
         item["interval"] = _slots[i].intervalMs;
     }
 }
@@ -268,6 +297,8 @@ void Bindings::toJson(JsonArray out) const {
 void Bindings::activate() {
     _pressed = 0;
     _toggled = 0;
+    _bursting = 0;
+    _fresh = true;
     _changed = true;
     hid::releaseAll();
 }
@@ -275,6 +306,8 @@ void Bindings::activate() {
 void Bindings::deactivate() {
     _pressed = 0;
     _toggled = 0;
+    _bursting = 0;
+    _fresh = true;
     _changed = true;
     hid::releaseAll();
 }
@@ -301,15 +334,34 @@ void Bindings::tapSlot(int index) {
     releaseSlot(index);
 }
 
-void Bindings::update(uint8_t pressedMask, uint32_t now) {
+void Bindings::update(uint8_t pressedMask, uint32_t now, MacroHost& host) {
+    if (_fresh) {
+        _fresh = false;
+        _pressed = pressedMask;
+        return;
+    }
     const uint8_t down = static_cast<uint8_t>(pressedMask & ~_pressed);
     const uint8_t up = static_cast<uint8_t>(_pressed & ~pressedMask);
     _pressed = pressedMask;
+    _bursting = static_cast<uint8_t>((_bursting | down) & pressedMask);
     if (down || up) _changed = true;
 
     for (int i = 0; i < kSlots; ++i) {
         const uint8_t bit = kMasks[i];
         const Binding& b = _slots[i];
+        if (b.script.length()) {
+            if (down & bit) {
+                if (host.isRunning(b.script)) host.stop();
+                else host.run(b.script);
+            }
+            const bool on = host.isRunning(b.script);
+            const uint8_t next = on ? static_cast<uint8_t>(_toggled | bit) : static_cast<uint8_t>(_toggled & ~bit);
+            if (next != _toggled) {
+                _toggled = next;
+                _changed = true;
+            }
+            continue;
+        }
         if (b.codeCount == 0) continue;
         const bool pressedNow = (down & bit) != 0;
         const bool releasedNow = (up & bit) != 0;
@@ -324,7 +376,7 @@ void Bindings::update(uint8_t pressedMask, uint32_t now) {
                 if (pressedNow) {
                     tapSlot(i);
                     _nextBurst[i] = now + b.intervalMs;
-                } else if (held && static_cast<int32_t>(now - _nextBurst[i]) >= 0) {
+                } else if (held && (_bursting & bit) && static_cast<int32_t>(now - _nextBurst[i]) >= 0) {
                     tapSlot(i);
                     _nextBurst[i] = now + b.intervalMs;
                 }
@@ -338,6 +390,20 @@ void Bindings::update(uint8_t pressedMask, uint32_t now) {
                         pressSlot(i);
                         _toggled = static_cast<uint8_t>(_toggled | bit);
                     }
+                }
+                break;
+            case BindBehavior::ToggleBurst:
+                if (pressedNow) {
+                    if (_toggled & bit) {
+                        _toggled = static_cast<uint8_t>(_toggled & ~bit);
+                    } else {
+                        _toggled = static_cast<uint8_t>(_toggled | bit);
+                        tapSlot(i);
+                        _nextBurst[i] = now + b.intervalMs;
+                    }
+                } else if ((_toggled & bit) && static_cast<int32_t>(now - _nextBurst[i]) >= 0) {
+                    tapSlot(i);
+                    _nextBurst[i] = now + b.intervalMs;
                 }
                 break;
         }

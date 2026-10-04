@@ -42,10 +42,12 @@ Press **Select** on the gamepad to switch between Macro mode and Bind mode (the 
 - **Hold** (`normal`): the key is pressed while the button is held.
 - **Burst**: the key is tapped repeatedly every N ms while the button is held.
 - **Toggle**: one press holds the key, the next press releases it.
+- **Toggle burst** (`toggleburst`): one press starts tapping the key every N ms, the next press stops it.
+- **Macro** (`macro` with a `script` name): one press runs that macro, the next press stops it. Other buttons keep sending their keys while it runs.
 
 Entering Bind mode stops any running macro and releases all keys; leaving it releases everything again. The mode survives a reboot. Bindings are stored in `/binds.json`.
 
-Bindings can be set from the web page (Bindings section) or on the device: in Bind mode press **Start** to open setup. Up/Down picks a button, **A** edits it, **B** goes back. In the editor Up/Down moves between Key, Modifier, Behavior and Interval, Left/Right changes the value (hold for auto-repeat), **A** saves that button, **B** cancels. Setting Key to none and Modifier to none unbinds the button. While setup is open the gamepad sends nothing to the computer.
+Bindings can be set from the web page (Bindings section) or on the device: in Bind mode press **Start** to open setup. Up/Down picks a button, **A** edits it, **B** goes back. In the editor Up/Down moves between Key, Modifier, Behavior and Interval, Left/Right changes the value (hold for auto-repeat), **A** saves that button, **B** cancels. Setting Key to none and Modifier to none unbinds the button. Group "macro" turns the Key row into a script picker. While setup is open the gamepad sends nothing to the computer.
 
 ## Script language
 
@@ -100,7 +102,7 @@ END
 | `{"cmd":"check","content":"..."}` | `valid`, `error`, `line` without saving |
 | `{"cmd":"config","set":{"screenTimeout":30,"brightness":150}}` | `screenTimeout` (seconds, 0 = never), `brightness` (5–255) |
 | `{"cmd":"info"}` | `fsUsed`, `fsTotal`, `uptime`, `freeHeap`, `scripts` |
-| `{"cmd":"binds"}` | `mode`, `binds: [{button, keys, mode, interval}]` for up, down, left, right, a, b |
+| `{"cmd":"binds"}` | `mode`, `binds: [{button, keys, script, mode, interval}]` for up, down, left, right, a, b; a macro binding has `mode` `macro` and the `script` name |
 | `{"cmd":"binds","set":[{"button":"a","keys":"ctrl+c","mode":"burst","interval":100}, ...]}` | saves all bindings; `mode` is `normal`, `burst` or `toggle`; errors name the button |
 | `{"cmd":"mode","set":"bind"}` | switches between `macro` and `bind`; without `set` just reads |
 

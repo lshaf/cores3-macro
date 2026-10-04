@@ -11,10 +11,14 @@
 #include "storage.h"
 #include "ui.h"
 
-class App {
+class App : public MacroHost {
 public:
     void setup();
     void loop();
+    bool isRunning(const String& script) override;
+    void run(const String& script) override;
+    void stop() override { stopMacro(); }
+    bool exists(const String& script) override;
 
 private:
     void refreshScripts();
