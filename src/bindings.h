@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
+#include <vector>
+
 enum class BindBehavior : uint8_t { Normal, Burst, Toggle, ToggleBurst };
 constexpr int kBindBehaviorCount = 4;
 
@@ -13,6 +15,18 @@ struct Binding {
     uint16_t intervalMs = 100;
     uint8_t codes[8] = {};
     uint8_t codeCount = 0;
+};
+
+struct MenuState {
+    bool open = false;
+    int row = 0;
+};
+
+struct PresetState {
+    bool open = false;
+    int row = 0;
+    int confirm = 0;
+    int confirmRow = -1;
 };
 
 struct BindSetup {
@@ -61,6 +75,13 @@ public:
     bool applyJson(JsonArrayConst list, String& err);
     bool setSlot(int slot, const String& keys, BindBehavior behavior, uint16_t intervalMs, String& err);
     bool setSlotMacro(int slot, const String& script);
+    static std::vector<String> presetNames();
+    static bool presetExists(const String& name);
+    bool savePreset(const String& name) const;
+    bool loadPreset(const String& name);
+    static bool deletePreset(const String& name);
+    static bool renamePreset(const String& from, const String& to);
+    static String freePresetName();
     void toJson(JsonArray out) const;
     const Binding& slot(int index) const { return _slots[index]; }
 

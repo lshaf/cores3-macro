@@ -29,7 +29,15 @@ private:
     void stopMacro();
     void setBindMode(bool enabled, uint32_t now);
     void setTransport(bool ble, uint32_t now);
-    void handleStartButton(uint32_t now);
+    void handleHolds(uint32_t now);
+    void handleMenuInput(uint32_t now);
+    void handlePresetInput(uint32_t now);
+    void openPresets();
+    void closePresets();
+    void savePresetAs(const String& name, uint32_t now);
+    bool loadPresetNamed(const String& name, uint32_t now);
+    void sendPresets();
+    void fillPresets(JsonDocument& doc);
     void openSetup();
     void closeSetup();
     void beginEdit();
@@ -65,9 +73,17 @@ private:
     Bindings _binds;
     bool _bindMode = false;
     BindSetup _setup;
-    uint32_t _startDownAt = 0;
-    bool _startHeld = false;
-    bool _startConsumed = false;
+    MenuState _menu;
+    PresetState _presets;
+    std::vector<String> _presetNames;
+
+    struct HoldTracker {
+        uint32_t downAt = 0;
+        bool held = false;
+        bool consumed = false;
+    };
+    HoldTracker _holdSelect;
+    HoldTracker _holdStart;
     MacroRunner _runner;
     Ui _ui;
     MacroStatus _lastStatus;

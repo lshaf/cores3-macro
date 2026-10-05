@@ -97,7 +97,7 @@ bool storage::rename(const String& from, const String& to) {
 }
 
 DeviceConfig storage::loadConfig() {
-    DeviceConfig config{cfg::kDefaultScreenTimeoutMs, cfg::kDefaultBrightness, "", false, false};
+    DeviceConfig config{cfg::kDefaultScreenTimeoutMs, cfg::kDefaultBrightness, "", false, false, ""};
     if (!fsReady) return config;
     File f = LittleFS.open(cfg::kConfigPath, FILE_READ);
     if (!f) return config;
@@ -108,6 +108,7 @@ DeviceConfig storage::loadConfig() {
         config.selected = doc["selected"] | "";
         config.bindMode = doc["bindMode"] | false;
         config.ble = doc["ble"] | false;
+        config.preset = doc["preset"] | "";
     }
     f.close();
     return config;
@@ -121,6 +122,7 @@ bool storage::saveConfig(const DeviceConfig& config) {
     doc["selected"] = config.selected;
     doc["bindMode"] = config.bindMode;
     doc["ble"] = config.ble;
+    doc["preset"] = config.preset;
     File f = LittleFS.open(cfg::kConfigPath, FILE_WRITE);
     if (!f) return false;
     serializeJson(doc, f);

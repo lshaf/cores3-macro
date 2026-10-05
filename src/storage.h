@@ -15,6 +15,7 @@ struct DeviceConfig {
     String selected;
     bool bindMode;
     bool ble;
+    String preset;
 };
 
 namespace storage {

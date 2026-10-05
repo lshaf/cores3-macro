@@ -951,6 +951,12 @@ select:disabled { opacity: 0.5; }
   text-underline-offset: 3px;
 }
 
+.presets { margin-top: 20px; }
+.presets .section-head { margin-bottom: 6px; }
+.presets .section-head h3 { flex: 1; }
+.presets .section-head .count { font-size: 12px; }
+.preset-new { padding: 0 0 10px; }
+
 .field {
   display: flex;
   flex-direction: column;
@@ -1300,6 +1306,24 @@ input:disabled { opacity: 0.5; }
       <div class="bind-rows" id="bindRows"></div>
       <p class="bind-error" id="bindError" hidden></p>
       <p class="bind-hint">Press Select on the device to switch between macros and bindings. Combos use the same syntax as <code>KEY</code>, see <a href="#keyNames" id="keyNamesLink">Key names</a>.</p>
+      <div class="presets">
+        <div class="section-head">
+          <h3 id="presetsTitle">Presets <span class="count" id="presetCount"></span></h3>
+          <button type="button" class="btn btn-sm" id="presetSaveBtn" disabled>Save current as preset</button>
+        </div>
+        <div class="rename preset-new" id="presetNew" hidden>
+          <label class="sr-only" for="presetNameInput">Preset name</label>
+          <input class="rename-input" id="presetNameInput" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Preset name">
+          <p class="rename-hint" id="presetNewHint" hidden></p>
+          <div class="rename-actions">
+            <button type="button" class="btn btn-sm btn-primary" id="presetNewSave">Save preset</button>
+            <button type="button" class="btn btn-sm" id="presetNewCancel">Cancel</button>
+          </div>
+        </div>
+        <ul class="scripts" id="presetList" aria-labelledby="presetsTitle"></ul>
+        <p class="empty" id="presetsOffline">Connect the device to see its presets.</p>
+        <p class="empty" id="presetsEmpty" hidden>No presets yet. Save the current bindings as one.</p>
+      </div>
     </section>
 
     <section class="settings" aria-labelledby="settingsTitle">
@@ -1453,7 +1477,15 @@ const state = {
   binds: null,
   bindDraft: null,
   pad: null,
-  bindError: ''
+  bindError: '',
+  presets: null,
+  activePreset: '',
+  presetSel: null,
+  presetRenaming: null,
+  presetRenameError: '',
+  presetConfirm: null,
+  presetNewOpen: false,
+  presetNewError: ''
 };
 
 const serial = {
@@ -1476,6 +1508,7 @@ let lastCheckedContent = null;
 let savedNoteTimer = 0;
 let bindsSavedTimer = 0;
 let bindSaving = false;
+let presetBusy = false;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -1521,14 +1554,42 @@ function nameTaken(name, ignore) {
   return state.scripts.some(s => s.name === name && s.name !== ignore);
 }
 
-function nameProblem(name, ignore) {
-  if (!name) return 'Give the macro a name.';
+function nameRuleProblem(name) {
   if (name.length > 32) return 'Names are 32 characters at most.';
   if (!NAME_CHARS.test(name)) return 'Only letters, digits, spaces and _ - . ( ) are allowed.';
   if (name[0] === '.' || name[0] === ' ') return 'A name cannot start with a dot or a space.';
   if (name.endsWith(' ')) return 'A name cannot end with a space.';
+  return '';
+}
+
+function nameProblem(name, ignore) {
+  if (!name) return 'Give the macro a name.';
+  const problem = nameRuleProblem(name);
+  if (problem) return problem;
   if (nameTaken(name, ignore)) return 'Another macro already has this name.';
   return '';
+}
+
+function presetNames() {
+  return state.presets || [];
+}
+
+function presetTaken(name, ignore) {
+  return presetNames().some(p => p === name && p !== ignore);
+}
+
+function presetNameProblem(name, ignore) {
+  if (!name) return 'Give the preset a name.';
+  const problem = nameRuleProblem(name);
+  if (problem) return problem;
+  if (presetTaken(name, ignore)) return 'Another preset already has this name. Use Overwrite on it instead.';
+  return '';
+}
+
+function suggestPresetName() {
+  let i = 1;
+  while (presetTaken('Preset ' + i)) i++;
+  return 'Preset ' + i;
 }
 
 function suggestDraftName() {
@@ -1686,6 +1747,9 @@ function handleLine(line) {
     renderBinds();
     renderMode();
     toast('Bindings changed on the device', 'info');
+  } else if (msg.type === 'presets') {
+    applyPresets(msg);
+    renderPresets();
   }
 }
 
@@ -1745,6 +1809,7 @@ async function connect() {
     await loadConfig();
     await loadInfo();
     await loadBinds();
+    await loadPresets();
     state.connecting = false;
     renderAll();
     toast('Connected to ' + (state.device.name || 'the device') + (state.device.fw ? ', firmware ' + state.device.fw : '') + '.', 'success');
@@ -1802,6 +1867,14 @@ function resetDeviceState() {
   state.bindDraft = null;
   state.pad = null;
   state.bindError = '';
+  state.presets = null;
+  state.activePreset = '';
+  state.presetSel = null;
+  state.presetRenaming = null;
+  state.presetRenameError = '';
+  state.presetConfirm = null;
+  state.presetNewOpen = false;
+  state.presetNewError = '';
   lastCheckedContent = null;
 }
 
@@ -2016,6 +2089,166 @@ async function saveBinds() {
     bindSaving = false;
     renderBinds();
     renderTopbar();
+  }
+}
+
+function applyPresets(msg) {
+  const names = Array.isArray(msg.presets) ? msg.presets.filter(p => p && typeof p.name === 'string').map(p => p.name) : [];
+  state.presets = names;
+  state.activePreset = typeof msg.active === 'string' ? msg.active : '';
+  if (state.presetSel && !names.includes(state.presetSel)) state.presetSel = null;
+  if (state.presetRenaming && !names.includes(state.presetRenaming)) {
+    state.presetRenaming = null;
+    state.presetRenameError = '';
+  }
+  if (state.presetConfirm && !names.includes(state.presetConfirm.name)) state.presetConfirm = null;
+}
+
+async function loadPresets() {
+  try {
+    applyPresets(await request('presets'));
+  } catch (err) {
+    state.presets = null;
+    state.activePreset = '';
+    toast('Could not read the presets: ' + messageFor(err), 'error');
+  }
+  renderPresets();
+}
+
+function canUsePresets() {
+  return state.connected && !state.connecting && !!state.presets && !presetBusy;
+}
+
+async function presetRequest(fields) {
+  presetBusy = true;
+  renderPresetMarks();
+  try {
+    applyPresets(await request('presets', fields));
+    return '';
+  } catch (err) {
+    return messageFor(err);
+  } finally {
+    presetBusy = false;
+    renderPresets();
+  }
+}
+
+function askLoadPreset(name) {
+  if (bindsDirty()) askPresetConfirm(name, 'load');
+  else loadPreset(name);
+}
+
+async function loadPreset(name) {
+  if (!canUsePresets()) return;
+  state.presetConfirm = null;
+  if (state.binds) state.bindDraft = cloneBinds(state.binds);
+  state.bindError = '';
+  renderBinds();
+  const error = await presetRequest({ action: 'load', name });
+  if (error) toast('Could not load "' + name + '": ' + error, 'error');
+  else toast('Loaded preset "' + name + '".', 'success');
+}
+
+async function savePreset(name) {
+  if (!canUsePresets()) return false;
+  state.presetConfirm = null;
+  const error = await presetRequest({ action: 'save', name });
+  if (error) toast('Could not save "' + name + '": ' + error, 'error');
+  else toast('Saved the current bindings as "' + name + '".', 'success');
+  return !error;
+}
+
+async function deletePreset(name) {
+  if (!canUsePresets()) return;
+  state.presetConfirm = null;
+  const error = await presetRequest({ action: 'delete', name });
+  if (error) toast('Could not delete "' + name + '": ' + error, 'error');
+  else toast('Deleted preset "' + name + '".', 'success');
+}
+
+function askPresetConfirm(name, action) {
+  state.presetConfirm = { name, action };
+  state.presetRenaming = null;
+  state.presetRenameError = '';
+  renderPresets();
+  const rowButton = els.presetList.querySelector('.script.confirming .btn-danger');
+  if (rowButton) rowButton.focus();
+}
+
+function cancelPresetConfirm() {
+  state.presetConfirm = null;
+  renderPresets();
+}
+
+function startPresetRename(name) {
+  state.presetRenaming = name;
+  state.presetRenameError = '';
+  state.presetConfirm = null;
+  renderPresets();
+  focusRenameInput(els.presetList);
+}
+
+function cancelPresetRename() {
+  state.presetRenaming = null;
+  state.presetRenameError = '';
+  renderPresets();
+}
+
+async function commitPresetRename(from, to) {
+  if (to === from) {
+    cancelPresetRename();
+    return;
+  }
+  const problem = presetNameProblem(to, from);
+  if (problem) {
+    state.presetRenameError = problem;
+    renderPresets();
+    focusRenameInput(els.presetList);
+    return;
+  }
+  if (!canUsePresets()) return;
+  const wasSel = state.presetSel === from;
+  const error = await presetRequest({ action: 'rename', from, to });
+  if (error) {
+    state.presetRenameError = error;
+    renderPresets();
+    focusRenameInput(els.presetList);
+    return;
+  }
+  if (wasSel) state.presetSel = to;
+  state.presetRenaming = null;
+  state.presetRenameError = '';
+  renderPresets();
+  toast('Renamed preset to "' + to + '".', 'success');
+}
+
+function openPresetForm() {
+  if (!canUsePresets()) return;
+  state.presetNewOpen = true;
+  state.presetNewError = '';
+  els.presetNameInput.value = suggestPresetName();
+  renderPresetForm();
+  els.presetNameInput.focus();
+  els.presetNameInput.select();
+}
+
+function closePresetForm() {
+  state.presetNewOpen = false;
+  state.presetNewError = '';
+  renderPresetForm();
+}
+
+async function savePresetAs(name) {
+  const problem = presetNameProblem(name, '');
+  if (problem) {
+    state.presetNewError = problem;
+    renderPresetForm();
+    els.presetNameInput.focus();
+    return;
+  }
+  if (await savePreset(name)) {
+    closePresetForm();
+    els.presetSaveBtn.focus();
   }
 }
 
@@ -2249,8 +2482,8 @@ function startRename(name) {
   focusRenameInput();
 }
 
-function focusRenameInput() {
-  const input = els.scriptList.querySelector('.rename-input');
+function focusRenameInput(list) {
+  const input = (list || els.scriptList).querySelector('.rename-input');
   if (!input) return;
   input.focus();
   input.select();
@@ -2368,6 +2601,7 @@ function renderAll() {
   renderScripts();
   renderEditor();
   renderBinds();
+  renderPresets();
   renderSettings();
   renderInfo();
 }
@@ -2510,7 +2744,7 @@ function renderScriptRow(item) {
   li.classList.toggle('active', isOpen);
   li.classList.toggle('draft', !!item.draft);
   if (!item.draft && state.renaming === item.name) {
-    li.appendChild(renderRenameForm(item.name));
+    li.appendChild(renderRenameForm(item.name, state.renameError, to => commitRename(item.name, to), cancelRename));
     return li;
   }
   const open = el('button', 'script-open');
@@ -2551,7 +2785,7 @@ function renderScriptRow(item) {
   return li;
 }
 
-function renderRenameForm(from) {
+function renderRenameForm(from, error, onCommit, onCancel) {
   const wrap = el('div', 'rename');
   const input = el('input', 'rename-input');
   input.type = 'text';
@@ -2559,19 +2793,19 @@ function renderRenameForm(from) {
   input.maxLength = 32;
   input.spellcheck = false;
   input.setAttribute('aria-label', 'New name for ' + from);
-  const hint = el('p', 'rename-hint', state.renameError);
-  hint.hidden = !state.renameError;
+  const hint = el('p', 'rename-hint', error);
+  hint.hidden = !error;
   const actions = el('div', 'rename-actions');
-  actions.appendChild(button('Rename', 'btn btn-sm btn-primary', () => commitRename(from, input.value)));
-  actions.appendChild(button('Cancel', 'btn btn-sm', cancelRename));
+  actions.appendChild(button('Rename', 'btn btn-sm btn-primary', () => onCommit(input.value)));
+  actions.appendChild(button('Cancel', 'btn btn-sm', onCancel));
   input.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      commitRename(from, input.value);
+      onCommit(input.value);
     } else if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      cancelRename();
+      onCancel();
     }
   });
   wrap.append(input, hint, actions);
@@ -2847,6 +3081,99 @@ function renderBindMarks() {
   for (const slot of bindRows) slot.row.classList.toggle('pressed', bind && padPressed(slot.button));
   els.bindsDirty.hidden = !dirty;
   els.saveBindsBtn.disabled = !online || !dirty || bindSaving;
+  renderPresetMarks();
+}
+
+function renderPresets() {
+  const list = els.presetList;
+  list.textContent = '';
+  const names = presetNames();
+  els.presetsOffline.hidden = state.connected;
+  els.presetsEmpty.hidden = !state.connected || !state.presets || names.length > 0;
+  els.presetCount.textContent = names.length ? String(names.length) : '';
+  for (const name of names) list.appendChild(renderPresetRow(name));
+  renderPresetForm();
+  renderPresetMarks();
+}
+
+function renderPresetForm() {
+  const open = state.presetNewOpen;
+  els.presetSaveBtn.hidden = open;
+  els.presetNew.hidden = !open;
+  els.presetNewHint.textContent = state.presetNewError;
+  els.presetNewHint.hidden = !state.presetNewError;
+}
+
+function renderPresetRow(name) {
+  const li = el('li', 'script');
+  li.dataset.name = name;
+  li.classList.toggle('active', state.presetSel === name);
+  if (state.presetRenaming === name) {
+    li.appendChild(renderRenameForm(name, state.presetRenameError, to => commitPresetRename(name, to), cancelPresetRename));
+    return li;
+  }
+  const open = el('button', 'script-open');
+  open.type = 'button';
+  if (name === state.activePreset) open.setAttribute('aria-current', 'true');
+  open.appendChild(el('span', 'script-name', name));
+  open.addEventListener('click', () => {
+    state.presetSel = state.presetSel === name ? null : name;
+    renderPresets();
+    focusPresetRow(name);
+  });
+  li.appendChild(open);
+  const actions = el('div', 'script-actions');
+  const confirm = state.presetConfirm && state.presetConfirm.name === name ? state.presetConfirm.action : '';
+  if (confirm) {
+    li.classList.add('confirming');
+    if (confirm === 'delete') {
+      actions.appendChild(el('span', 'confirm-text', 'Delete this preset?'));
+      actions.appendChild(button('Delete', 'btn btn-sm btn-danger', () => deletePreset(name)));
+    } else if (confirm === 'overwrite') {
+      actions.appendChild(el('span', 'confirm-text', 'Replace it with the current bindings?'));
+      actions.appendChild(button('Overwrite', 'btn btn-sm btn-danger', () => savePreset(name)));
+    } else {
+      actions.appendChild(el('span', 'confirm-text', 'Discard the unsaved binding changes and load it?'));
+      actions.appendChild(button('Load', 'btn btn-sm btn-danger', () => loadPreset(name)));
+    }
+    actions.appendChild(button('Cancel', 'btn btn-sm', cancelPresetConfirm));
+  } else {
+    const load = button('Load', 'btn btn-sm', () => askLoadPreset(name));
+    load.dataset.action = 'load';
+    const overwrite = button('Overwrite', 'btn btn-sm', () => askPresetConfirm(name, 'overwrite'));
+    overwrite.dataset.action = 'overwrite';
+    const rename = button('Rename', 'btn btn-sm', () => startPresetRename(name));
+    rename.dataset.action = 'rename';
+    const remove = button('Delete', 'btn btn-sm btn-danger', () => askPresetConfirm(name, 'delete'));
+    remove.dataset.action = 'delete';
+    actions.append(load, overwrite, rename, remove);
+  }
+  li.appendChild(actions);
+  return li;
+}
+
+function focusPresetRow(name) {
+  for (const li of els.presetList.children) {
+    if (li.dataset.name !== name) continue;
+    const open = li.querySelector('.script-open');
+    if (open) open.focus();
+  }
+}
+
+function renderPresetMarks() {
+  const ready = canUsePresets();
+  const dirty = bindsDirty();
+  els.presetSaveBtn.disabled = !ready || dirty;
+  els.presetSaveBtn.title = dirty ? 'Save the bindings first' : '';
+  els.presetNewSave.disabled = !ready;
+  for (const li of els.presetList.children) {
+    li.classList.toggle('selected', li.dataset.name === state.activePreset);
+    for (const node of li.querySelectorAll('[data-action]')) {
+      const snapshot = node.dataset.action === 'overwrite';
+      node.disabled = !ready || (snapshot && dirty);
+      node.title = snapshot && dirty ? 'Save the bindings first' : '';
+    }
+  }
 }
 
 function renderInfo() {
@@ -2950,6 +3277,28 @@ function bindEvents() {
   els.modeMacro.addEventListener('click', () => setMode('macro'));
   els.modeBind.addEventListener('click', () => setMode('bind'));
   els.saveBindsBtn.addEventListener('click', () => saveBinds());
+  els.presetSaveBtn.addEventListener('click', openPresetForm);
+  els.presetNewSave.addEventListener('click', () => savePresetAs(els.presetNameInput.value));
+  els.presetNewCancel.addEventListener('click', () => {
+    closePresetForm();
+    els.presetSaveBtn.focus();
+  });
+  els.presetNameInput.addEventListener('input', () => {
+    if (!state.presetNewError) return;
+    state.presetNewError = '';
+    renderPresetForm();
+  });
+  els.presetNameInput.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      savePresetAs(els.presetNameInput.value);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closePresetForm();
+      els.presetSaveBtn.focus();
+    }
+  });
   els.keyNamesLink.addEventListener('click', () => {
     state.refOpen = true;
     els.ref.classList.add('open');
@@ -2983,12 +3332,18 @@ function bindEvents() {
       if (!state.open) return;
       event.preventDefault();
       runOpen();
-    } else if (event.key === 'Escape' && (state.renaming || state.confirmDelete)) {
+    } else if (event.key === 'Escape' && (state.renaming || state.confirmDelete || state.presetRenaming || state.presetConfirm || state.presetNewOpen)) {
       state.renaming = null;
       state.renameError = '';
       state.confirmDelete = null;
+      state.presetRenaming = null;
+      state.presetRenameError = '';
+      state.presetConfirm = null;
+      state.presetNewOpen = false;
+      state.presetNewError = '';
       renderScripts();
       renderEditorActions();
+      renderPresets();
     }
   });
 

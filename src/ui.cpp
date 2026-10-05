@@ -95,7 +95,9 @@ void Ui::render(const UiModel& model, uint32_t now) {
     _canvas.setTextSize(1);
     drawHeader(model);
     const bool setupOpen = model.setup && model.setup->open;
-    if (model.bindMode && setupOpen && model.setup->editing) drawSetupEdit(model);
+    if (model.menu && model.menu->open) drawMenu(model);
+    else if (model.presets && model.presets->open) drawPresets(model);
+    else if (model.bindMode && setupOpen && model.setup->editing) drawSetupEdit(model);
     else if (model.bindMode && setupOpen) drawSetupList(model);
     else if (model.bindMode) drawBinds(model);
     else drawList(model, now);
@@ -110,13 +112,21 @@ void Ui::drawHeader(const UiModel& model) {
     _canvas.setTextDatum(textdatum_t::middle_left);
     _canvas.setTextColor(kAccent, kPanel);
     _canvas.drawString("CORE MACRO", 10, kHeaderH / 2);
-    if (model.bindMode) {
+    const bool menuOpen = model.menu && model.menu->open;
+    const bool presetsOpen = model.presets && model.presets->open;
+    const bool setupOpen = model.setup && model.setup->open;
+    const char* tag = nullptr;
+    if (menuOpen) tag = "MENU";
+    else if (presetsOpen) tag = "PRESETS";
+    else if (setupOpen) tag = "SETUP";
+    else if (model.bindMode) tag = "BIND";
+    if (tag) {
         const int px = 10 + _canvas.textWidth("CORE MACRO") + 10;
-        _canvas.fillRoundRect(px, kHeaderH / 2 - 9, (model.setup && model.setup->open) ? 48 : 40, 18, 4, kAccent);
+        const int pw = _canvas.textWidth(tag) + 14;
+        _canvas.fillRoundRect(px, kHeaderH / 2 - 9, pw, 18, 4, kAccent);
         _canvas.setTextDatum(textdatum_t::middle_center);
         _canvas.setTextColor(kBg, kAccent);
-        const bool setupOpen = model.setup && model.setup->open;
-        _canvas.drawString(setupOpen ? "SETUP" : "BIND", px + (setupOpen ? 24 : 20), kHeaderH / 2);
+        _canvas.drawString(tag, px + pw / 2, kHeaderH / 2);
         _canvas.setTextDatum(textdatum_t::middle_left);
     }
 
@@ -220,6 +230,29 @@ void Ui::drawStatus(const UiModel& model, uint32_t now) {
     const int line2 = kStatusY + 28;
     _canvas.setTextDatum(textdatum_t::middle_left);
 
+    if (model.menu && model.menu->open) {
+        _canvas.setTextColor(kText, bg);
+        _canvas.drawString("Device menu", 12, line1);
+        _canvas.setTextColor(kTextDim, bg);
+        _canvas.drawString("Left/Right changes a value, B closes", 12, line2);
+        return;
+    }
+    if (model.presets && model.presets->open) {
+        const PresetState& ps = *model.presets;
+        if (ps.confirm == 1 && ps.confirmRow == ps.row) {
+            _canvas.setTextColor(kRed, bg);
+            _canvas.drawString("Press Left again to delete this preset", 12, line1);
+        } else if (ps.confirm == 2 && ps.confirmRow == ps.row) {
+            _canvas.setTextColor(kAccent, bg);
+            _canvas.drawString("Press Right again to overwrite it", 12, line1);
+        } else {
+            _canvas.setTextColor(kText, bg);
+            _canvas.drawString(model.activePreset.length() ? "Active: " + fitText(model.activePreset, 200) : String("Bind presets"), 12, line1);
+        }
+        _canvas.setTextColor(kTextDim, bg);
+        _canvas.drawString("A load   Right overwrite   Left delete", 12, line2);
+        return;
+    }
     if (model.bindMode && model.setup && model.setup->open) {
         if (model.setup->editing) {
             const bool macroEdit = model.setup->group == Bindings::kMacroGroup;
@@ -246,7 +279,7 @@ void Ui::drawStatus(const UiModel& model, uint32_t now) {
         _canvas.setTextColor(kText, bg);
         _canvas.drawString("Gamepad acts as a keyboard", 12, line1);
         _canvas.setTextColor(kTextDim, bg);
-        _canvas.drawString(model.ble ? "START setup   hold START: USB" : "START setup   hold START: Bluetooth", 12, line2);
+        _canvas.drawString("START setup   hold START presets   hold SEL menu", 12, line2);
         return;
     }
 
@@ -295,8 +328,8 @@ void Ui::drawStatus(const UiModel& model, uint32_t now) {
             _canvas.setTextColor(kText, bg);
             _canvas.drawString("Pick a macro, press A to run it", 12, line1);
             _canvas.setTextColor(kTextDim, bg);
-            if (model.ble) _canvas.drawString(model.outputReady ? "Keys go over Bluetooth" : "Bluetooth: pair Core Macro on the computer", 12, line2);
-            else _canvas.drawString(model.usb ? "Keys go to the computer on USB" : "Plug USB into a computer first", 12, line2);
+            if (model.ble) _canvas.drawString(model.outputReady ? "Keys go over Bluetooth   hold SEL menu" : "Bluetooth: pair Core Macro   hold SEL menu", 12, line2);
+            else _canvas.drawString(model.usb ? "Keys go to the computer on USB   hold SEL menu" : "Plug USB into a computer   hold SEL menu", 12, line2);
             break;
     }
 }
@@ -450,6 +483,78 @@ void Ui::drawSetupEdit(const UiModel& model) {
     }
 }
 
+void Ui::drawMenu(const UiModel& model) {
+    struct Row {
+        const char* label;
+        String value;
+    };
+    const Row rows[4] = {
+        {"Mode", model.bindMode ? String("bind") : String("macro")},
+        {"Output", model.ble ? String("bluetooth") : String("usb")},
+        {"Screen off", model.screenTimeoutSec == 0 ? String("never") : String(model.screenTimeoutSec) + " s"},
+        {"Brightness", String(model.brightness)},
+    };
+    constexpr int rowH = 30;
+    for (int i = 0; i < 4; ++i) {
+        const int y = kListY + 8 + i * rowH;
+        const bool selected = model.menu->row == i;
+        const uint32_t rowBg = selected ? kRowSel : kBg;
+        if (selected) {
+            _canvas.fillRect(0, y, kW, rowH, kRowSel);
+            _canvas.fillRect(0, y, 4, rowH, kAccent);
+        }
+        _canvas.setTextDatum(textdatum_t::middle_left);
+        _canvas.setTextColor(kTextDim, rowBg);
+        _canvas.drawString(rows[i].label, 14, y + rowH / 2);
+        _canvas.setTextColor(selected ? kTextBright : kText, rowBg);
+        if (selected) {
+            _canvas.fillTriangle(124, y + rowH / 2, 130, y + rowH / 2 - 5, 130, y + rowH / 2 + 5, kAccent);
+            _canvas.drawString(rows[i].value, 138, y + rowH / 2);
+            const int vx = 138 + _canvas.textWidth(rows[i].value) + 8;
+            _canvas.fillTriangle(vx + 6, y + rowH / 2, vx, y + rowH / 2 - 5, vx, y + rowH / 2 + 5, kAccent);
+        } else {
+            _canvas.drawString(rows[i].value, 138, y + rowH / 2);
+        }
+    }
+}
+
+void Ui::drawPresets(const UiModel& model) {
+    constexpr int rowH = 24;
+    const int count = model.presetNames ? static_cast<int>(model.presetNames->size()) : 0;
+    const int rows = count + 1;
+    const int visible = kListH / rowH;
+    int scroll = model.presets->row - visible + 1;
+    if (scroll < 0) scroll = 0;
+    for (int i = 0; i < visible; ++i) {
+        const int r = scroll + i;
+        if (r >= rows) break;
+        const int y = kListY + i * rowH;
+        const bool selected = model.presets->row == r;
+        const uint32_t rowBg = selected ? kRowSel : kBg;
+        if (selected) {
+            _canvas.fillRect(0, y, kW, rowH, kRowSel);
+            _canvas.fillRect(0, y, 4, rowH, kAccent);
+        } else {
+            _canvas.drawFastHLine(12, y + rowH - 1, kW - 24, kLine);
+        }
+        _canvas.setTextDatum(textdatum_t::middle_left);
+        if (r == 0) {
+            _canvas.setTextColor(kAccent, rowBg);
+            _canvas.drawString("+ Save current as new preset", 14, y + rowH / 2);
+            continue;
+        }
+        const String& name = (*model.presetNames)[r - 1];
+        const bool active = name == model.activePreset;
+        _canvas.setTextColor(selected ? kTextBright : kText, rowBg);
+        _canvas.drawString(fitText(name, 220), 14, y + rowH / 2);
+        if (active) {
+            _canvas.setTextDatum(textdatum_t::middle_right);
+            _canvas.setTextColor(kGreen, rowBg);
+            _canvas.drawString("active", kW - 12, y + rowH / 2);
+        }
+    }
+}
+
 void Ui::drawFooter(const UiModel& model) {
     _canvas.fillRect(0, kFooterY, kW, kFooterH, kPanel);
     _canvas.drawFastHLine(0, kFooterY, kW, kLine);
@@ -466,6 +571,18 @@ void Ui::drawFooter(const UiModel& model) {
     }
 
     int x = 10;
+    if (model.menu && model.menu->open) {
+        x = drawArrowHint(false, "change", x, cy);
+        x = drawArrowHint(true, "row", x, cy);
+        drawHint("B", "close", x, cy);
+        return;
+    }
+    if (model.presets && model.presets->open) {
+        x = drawHint("A", "load", x, cy);
+        x = drawHint("B", "back", x, cy);
+        drawArrowHint(true, "pick", x, cy);
+        return;
+    }
     if (model.bindMode && model.setup && model.setup->open) {
         if (model.setup->editing) {
             x = drawHint("A", "save", x, cy);

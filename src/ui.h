@@ -23,6 +23,12 @@ struct UiModel {
     uint8_t padPressed = 0;
     uint8_t padToggled = 0;
     const BindSetup* setup = nullptr;
+    const MenuState* menu = nullptr;
+    const PresetState* presets = nullptr;
+    const std::vector<String>* presetNames = nullptr;
+    String activePreset;
+    uint32_t screenTimeoutSec = 30;
+    uint8_t brightness = 150;
 };
 
 class Ui {
@@ -40,6 +46,8 @@ private:
     void drawBinds(const UiModel& model);
     void drawSetupList(const UiModel& model);
     void drawSetupEdit(const UiModel& model);
+    void drawMenu(const UiModel& model);
+    void drawPresets(const UiModel& model);
     void drawStatus(const UiModel& model, uint32_t now);
     void drawFooter(const UiModel& model);
     int drawKeycap(const char* label, int x, int cy);

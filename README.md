@@ -35,9 +35,13 @@ The page is a single file with no build step. It talks newline-delimited JSON ov
 - The screen turns off after 30 seconds without a button press (configurable from the web page). Macros keep running with the screen off. The first press after that only wakes the screen.
 - Everything held by a macro (keys, mouse buttons) is released when it ends or is stopped.
 
+## Device menu
+
+Hold **Select** for about a second to open the menu: Mode (macro / bind), Output (USB / Bluetooth), Screen off, Brightness. Up/Down picks a row, Left/Right changes it, B closes. A short Select press still flips the mode directly.
+
 ## Output: USB or Bluetooth
 
-Keys go out over USB by default. Hold **Start** for about a second (in either mode) to switch to Bluetooth LE and back. In Bluetooth mode the device advertises as "Core Macro"; pair it from the computer or phone like any BLE keyboard. The header dot reads USB or BLE and lights when the link is ready. The choice is remembered across reboots. The serial port and web page keep working over USB in both modes.
+Keys go out over USB by default. Switch to Bluetooth LE in the device menu or from the web page settings. In Bluetooth mode the device advertises as "Core Macro"; pair it from the computer or phone like any BLE keyboard. The header dot reads USB or BLE and lights when the link is ready. The choice is remembered across reboots. The serial port and web page keep working over USB in both modes.
 
 ## Bind mode
 
@@ -51,7 +55,7 @@ Press **Select** on the gamepad to switch between Macro mode and Bind mode (the 
 
 Entering Bind mode stops any running macro and releases all keys; leaving it releases everything again. The mode survives a reboot. Bindings are stored in `/binds.json`.
 
-Bindings can be set from the web page (Bindings section) or on the device: in Bind mode press **Start** to open setup. Up/Down picks a button, **A** edits it, **B** goes back. In the editor Up/Down moves between Key, Modifier, Behavior and Interval, Left/Right changes the value (hold for auto-repeat), **A** saves that button, **B** cancels. Setting Key to none and Modifier to none unbinds the button. Group "macro" turns the Key row into a script picker. While setup is open the gamepad sends nothing to the computer.
+Bindings can be set from the web page (Bindings section) or on the device: in Bind mode press **Start** to open setup. Hold **Start** to open presets: the first row saves the current bindings as a new preset (named Preset N, rename it from the web page), A loads the highlighted preset, Right twice overwrites it with the current bindings, Left twice deletes it. The active preset is remembered across reboots; presets live in `/presets/`. Up/Down picks a button, **A** edits it, **B** goes back. In the editor Up/Down moves between Key, Modifier, Behavior and Interval, Left/Right changes the value (hold for auto-repeat), **A** saves that button, **B** cancels. Setting Key to none and Modifier to none unbinds the button. Group "macro" turns the Key row into a script picker. While setup is open the gamepad sends nothing to the computer.
 
 ## Script language
 
@@ -109,12 +113,14 @@ END
 | `{"cmd":"binds"}` | `mode`, `binds: [{button, keys, script, mode, interval}]` for up, down, left, right, a, b; a macro binding has `mode` `macro` and the `script` name |
 | `{"cmd":"binds","set":[{"button":"a","keys":"ctrl+c","mode":"burst","interval":100}, ...]}` | saves all bindings; `mode` is `normal`, `burst` or `toggle`; errors name the button |
 | `{"cmd":"mode","set":"bind"}` | switches between `macro` and `bind`; without `set` just reads |
+| `{"cmd":"presets"}` | `presets: [{name}]`, `active` |
+| `{"cmd":"presets","action":"save"\|"load"\|"delete","name":"x"}` and `{"cmd":"presets","action":"rename","from":"a","to":"b"}` | manage presets; each returns the list |
 
 State fields: `state` (`idle`, `running`, `finished`, `stopped`, `error`), `script`, `line`, `total`, `loop`, `loopCount` (-1 = forever), `loopDepth`, `elapsed` (ms), `error`, `usb`, `gamepad`.
 
 State fields also carry `mode` (`macro` or `bind`), `transport` (`usb` or `ble`) and `ready` (true when the current link can take keys).
 
-Events: `{"type":"state", ...state fields}` on every transition and about five times per second while running; `{"type":"selected","name":"x"}` when the highlight moves on the device; `{"type":"mode","mode":"bind"}` on a mode switch; `{"type":"pad","pressed":mask,"toggled":mask}` in Bind mode when buttons change (bits: up 1, down 2, left 4, right 8, a 16, b 32); `{"type":"binds","mode":...,"binds":[...]}` after a binding is saved on the device.
+Events: `{"type":"state", ...state fields}` on every transition and about five times per second while running; `{"type":"selected","name":"x"}` when the highlight moves on the device; `{"type":"mode","mode":"bind"}` on a mode switch; `{"type":"pad","pressed":mask,"toggled":mask}` in Bind mode when buttons change (bits: up 1, down 2, left 4, right 8, a 16, b 32); `{"type":"binds","mode":...,"binds":[...]}` after bindings change on the device; `{"type":"presets","presets":[...],"active":"x"}` after presets change.
 
 Script names: 1–32 characters, letters, digits, space, `_ - . ( )`. Scripts are stored as `/macros/<name>.txt` on LittleFS, 24 KB maximum each.
 

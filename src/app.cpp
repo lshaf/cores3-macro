@@ -104,6 +104,12 @@ UiModel App::model() {
     m.padPressed = _binds.pressedMask();
     m.padToggled = _binds.toggledMask();
     m.setup = &_setup;
+    m.menu = &_menu;
+    m.presets = &_presets;
+    m.presetNames = &_presetNames;
+    m.activePreset = _config.preset;
+    m.screenTimeoutSec = _config.screenTimeoutMs / 1000u;
+    m.brightness = _config.brightness;
     return m;
 }
 
@@ -184,6 +190,7 @@ void App::setBindMode(bool enabled, uint32_t now) {
     if (enabled == _bindMode) return;
     _bindMode = enabled;
     _setup = BindSetup();
+    _presets = PresetState();
     if (enabled) {
         stopMacro();
         _binds.activate();
@@ -206,29 +213,191 @@ void App::setTransport(bool ble, uint32_t now) {
     sendState(now);
 }
 
-void App::handleStartButton(uint32_t now) {
-    const bool held = _pad.pressed(PAD_START);
-    if (_pad.fired(PAD_START)) {
-        _startDownAt = now;
-        _startConsumed = false;
-        _startHeld = true;
-        return;
+namespace {
+
+enum class HoldEvent { None, Long, Short };
+
+HoldEvent trackHold(bool fired, bool held, uint32_t now, uint32_t holdMs, uint32_t& downAt, bool& wasHeld, bool& consumed) {
+    if (fired) {
+        downAt = now;
+        consumed = false;
+        wasHeld = true;
+        return HoldEvent::None;
     }
-    if (held && _startHeld && !_startConsumed && now - _startDownAt >= cfg::kStartHoldMs) {
-        _startConsumed = true;
-        setTransport(hid::transport() != hid::Transport::Ble, now);
-        return;
+    if (held && wasHeld && !consumed && now - downAt >= holdMs) {
+        consumed = true;
+        return HoldEvent::Long;
     }
-    if (!held && _startHeld) {
-        _startHeld = false;
-        if (_startConsumed) return;
-        if (!_bindMode) return;
+    if (!held && wasHeld) {
+        wasHeld = false;
+        return consumed ? HoldEvent::None : HoldEvent::Short;
+    }
+    return HoldEvent::None;
+}
+
+}
+
+void App::handleHolds(uint32_t now) {
+    const HoldEvent select = trackHold(_pad.fired(PAD_SELECT), _pad.pressed(PAD_SELECT), now, cfg::kStartHoldMs, _holdSelect.downAt, _holdSelect.held, _holdSelect.consumed);
+    const HoldEvent start = trackHold(_pad.fired(PAD_START), _pad.pressed(PAD_START), now, cfg::kStartHoldMs, _holdStart.downAt, _holdStart.held, _holdStart.consumed);
+
+    if (select == HoldEvent::Long) {
+        if (_menu.open) {
+            _menu.open = false;
+        } else {
+            closePresets();
+            if (_setup.open) closeSetup();
+            _menu = MenuState();
+            _menu.open = true;
+        }
+        _dirty = true;
+    } else if (select == HoldEvent::Short) {
+        if (_menu.open) _menu.open = false;
+        else if (_presets.open) closePresets();
+        else setBindMode(!_bindMode, now);
+        _dirty = true;
+    }
+
+    if (start == HoldEvent::Long) {
+        if (!_bindMode || _menu.open) return;
+        if (_presets.open) {
+            closePresets();
+        } else {
+            if (_setup.open) closeSetup();
+            openPresets();
+        }
+    } else if (start == HoldEvent::Short) {
+        if (_menu.open || _presets.open || !_bindMode) return;
         if (_setup.open) {
             if (!_setup.editing) closeSetup();
         } else {
             openSetup();
         }
     }
+}
+
+void App::handleMenuInput(uint32_t now) {
+    constexpr int rows = 4;
+    if (_pad.fired(PAD_UP)) _menu.row = (_menu.row + rows - 1) % rows;
+    if (_pad.fired(PAD_DOWN)) _menu.row = (_menu.row + 1) % rows;
+    int delta = 0;
+    if (_pad.fired(PAD_LEFT)) delta = -1;
+    if (_pad.fired(PAD_RIGHT)) delta = 1;
+    if (_pad.fired(PAD_A)) delta = 1;
+    if (delta != 0) {
+        switch (_menu.row) {
+            case 0: setBindMode(!_bindMode, now); break;
+            case 1: setTransport(hid::transport() != hid::Transport::Ble, now); break;
+            case 2: {
+                int sec = static_cast<int>(_config.screenTimeoutMs / 1000u) + delta * 15;
+                if (sec < 0) sec = 0;
+                if (sec > 600) sec = 600;
+                _config.screenTimeoutMs = static_cast<uint32_t>(sec) * 1000u;
+                _configDirty = true;
+                _configDirtyAt = now;
+                break;
+            }
+            case 3: {
+                int b = _config.brightness + delta * 25;
+                if (b < cfg::kMinBrightness) b = cfg::kMinBrightness;
+                if (b > 255) b = 255;
+                _config.brightness = static_cast<uint8_t>(b);
+                applyBrightness();
+                _configDirty = true;
+                _configDirtyAt = now;
+                break;
+            }
+        }
+    }
+    if (_pad.fired(PAD_B)) _menu.open = false;
+    _dirty = true;
+}
+
+void App::openPresets() {
+    _presetNames = Bindings::presetNames();
+    _presets = PresetState();
+    _presets.open = true;
+    _binds.deactivate();
+    _dirty = true;
+}
+
+void App::closePresets() {
+    if (!_presets.open) return;
+    _presets = PresetState();
+    if (_bindMode) _binds.activate();
+    _dirty = true;
+}
+
+void App::savePresetAs(const String& name, uint32_t now) {
+    if (!_binds.savePreset(name)) return;
+    _config.preset = name;
+    _configDirty = true;
+    _configDirtyAt = now;
+    _presetNames = Bindings::presetNames();
+    sendPresets();
+    _dirty = true;
+}
+
+bool App::loadPresetNamed(const String& name, uint32_t now) {
+    if (!_binds.loadPreset(name)) return false;
+    _config.preset = name;
+    _configDirty = true;
+    _configDirtyAt = now;
+    if (_bindMode && !_setup.open && !_presets.open) _binds.activate();
+    sendPresets();
+    sendBinds();
+    _dirty = true;
+    return true;
+}
+
+void App::handlePresetInput(uint32_t now) {
+    const int count = static_cast<int>(_presetNames.size());
+    const int rows = count + 1;
+    const int before = _presets.row;
+    if (_pad.fired(PAD_UP)) _presets.row = (_presets.row + rows - 1) % rows;
+    if (_pad.fired(PAD_DOWN)) _presets.row = (_presets.row + 1) % rows;
+    if (_presets.row != before) _presets.confirm = 0;
+    const int idx = _presets.row - 1;
+
+    if (_pad.fired(PAD_A)) {
+        if (_presets.row == 0) {
+            savePresetAs(Bindings::freePresetName(), now);
+        } else if (idx >= 0 && idx < count) {
+            loadPresetNamed(_presetNames[idx], now);
+        }
+        _presets.confirm = 0;
+    }
+    if (idx >= 0 && idx < count) {
+        if (_pad.fired(PAD_RIGHT)) {
+            if (_presets.confirm == 2 && _presets.confirmRow == _presets.row) {
+                savePresetAs(_presetNames[idx], now);
+                _presets.confirm = 0;
+            } else {
+                _presets.confirm = 2;
+                _presets.confirmRow = _presets.row;
+            }
+        }
+        if (_pad.fired(PAD_LEFT)) {
+            if (_presets.confirm == 1 && _presets.confirmRow == _presets.row) {
+                const String name = _presetNames[idx];
+                Bindings::deletePreset(name);
+                if (_config.preset == name) {
+                    _config.preset = "";
+                    _configDirty = true;
+                    _configDirtyAt = now;
+                }
+                _presetNames = Bindings::presetNames();
+                if (_presets.row > static_cast<int>(_presetNames.size())) _presets.row = static_cast<int>(_presetNames.size());
+                _presets.confirm = 0;
+                sendPresets();
+            } else {
+                _presets.confirm = 1;
+                _presets.confirmRow = _presets.row;
+            }
+        }
+    }
+    if (_pad.fired(PAD_B)) closePresets();
+    _dirty = true;
 }
 
 void App::openSetup() {
@@ -375,8 +544,11 @@ void App::handleInput(uint32_t now) {
             wakeScreen(now);
         } else {
             _lastActivity = now;
-            if (_pad.fired(PAD_SELECT)) {
-                setBindMode(!_bindMode, now);
+            if (_pad.fired(PAD_SELECT) || _pad.fired(PAD_START)) {
+            } else if (_menu.open) {
+                handleMenuInput(now);
+            } else if (_presets.open) {
+                handlePresetInput(now);
             } else if (_bindMode && _setup.open) {
                 handleSetupInput(now);
             } else if (!_bindMode) {
@@ -389,8 +561,8 @@ void App::handleInput(uint32_t now) {
             }
         }
     }
-    if (_screenOn) handleStartButton(now);
-    if (_bindMode && !_setup.open) {
+    if (_screenOn) handleHolds(now);
+    if (_bindMode && !_setup.open && !_menu.open && !_presets.open) {
         _binds.update(static_cast<uint8_t>(_pad.pressedMask() & ~(PAD_SELECT | PAD_START)), now, *this);
         if (_binds.takeChanged()) {
             _dirty = true;
@@ -413,6 +585,14 @@ void App::handleInput(uint32_t now) {
             return;
         }
         if (!_screenOn) return;
+        if (_menu.open || _presets.open) {
+            if (_ui.statusCardAt(touch.x, touch.y)) {
+                _menu.open = false;
+                closePresets();
+                _dirty = true;
+            }
+            return;
+        }
         if (_bindMode) {
             if (_ui.statusCardAt(touch.x, touch.y)) {
                 if (_setup.open) closeSetup();
@@ -517,6 +697,23 @@ void App::sendState(uint32_t now) {
     JsonDocument ev;
     ev["type"] = "state";
     fillState(ev, _lastStatus, now);
+    serial_api::send(ev);
+}
+
+void App::fillPresets(JsonDocument& doc) {
+    JsonArray arr = doc["presets"].to<JsonArray>();
+    for (const String& name : Bindings::presetNames()) {
+        JsonObject item = arr.add<JsonObject>();
+        item["name"] = name;
+    }
+    doc["active"] = _config.preset;
+}
+
+void App::sendPresets() {
+    if (!serial_api::hostConnected()) return;
+    JsonDocument ev;
+    ev["type"] = "presets";
+    fillPresets(ev);
     serial_api::send(ev);
 }
 
@@ -701,6 +898,53 @@ void App::dispatch(JsonDocument& req, uint32_t now) {
             }
         }
         if (res["ok"] == true) fillBinds(res);
+    } else if (cmd == "presets") {
+        const String action = fieldFrom(req, "action");
+        const String name = fieldFrom(req, "name");
+        if (action == "save") {
+            if (!_binds.savePreset(name)) failResponse(res, kNameRule);
+            else {
+                _config.preset = name;
+                _configDirty = true;
+                _configDirtyAt = now;
+                _presetNames = Bindings::presetNames();
+                markActivity(now);
+            }
+        } else if (action == "load") {
+            if (!Bindings::presetExists(name)) failResponse(res, "Preset not found: " + name);
+            else if (!loadPresetNamed(name, now)) failResponse(res, "Could not load preset " + name);
+            else markActivity(now);
+        } else if (action == "delete") {
+            if (!Bindings::deletePreset(name)) failResponse(res, "Preset not found: " + name);
+            else {
+                if (_config.preset == name) {
+                    _config.preset = "";
+                    _configDirty = true;
+                    _configDirtyAt = now;
+                }
+                _presetNames = Bindings::presetNames();
+                markActivity(now);
+            }
+        } else if (action == "rename") {
+            const String from = fieldFrom(req, "from");
+            const String to = fieldFrom(req, "to");
+            if (!Bindings::presetExists(from)) failResponse(res, "Preset not found: " + from);
+            else if (Bindings::presetExists(to)) failResponse(res, "A preset named " + to + " already exists");
+            else if (!Bindings::renamePreset(from, to)) failResponse(res, kNameRule);
+            else {
+                if (_config.preset == from) {
+                    _config.preset = to;
+                    _configDirty = true;
+                    _configDirtyAt = now;
+                }
+                _presetNames = Bindings::presetNames();
+                markActivity(now);
+            }
+        } else if (action.length() > 0) {
+            failResponse(res, "Unknown preset action: " + action);
+        }
+        if (res["ok"] == true) fillPresets(res);
+        _dirty = true;
     } else if (cmd == "mode") {
         const String set = fieldFrom(req, "set");
         if (set.length() > 0) {

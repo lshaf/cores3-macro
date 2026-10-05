@@ -3,6 +3,8 @@
 #include <LittleFS.h>
 #include <strings.h>
 
+#include <algorithm>
+
 #include "config.h"
 #include "hid.h"
 
@@ -55,6 +57,21 @@ bool isModifierToken(const String& token) {
     return hid::keyCodeFor(token.c_str(), code) && code >= 0xE0 && code <= 0xE7;
 }
 constexpr const char* kBindsPath = "/binds.json";
+constexpr const char* kPresetDir = "/presets";
+
+String presetPath(const String& name) {
+    return String(kPresetDir) + "/" + name + ".json";
+}
+
+bool validPresetName(const String& name) {
+    if (name.length() == 0 || name.length() > 32) return false;
+    if (name[0] == '.' || name[0] == ' ' || name[name.length() - 1] == ' ') return false;
+    for (size_t i = 0; i < name.length(); ++i) {
+        const char c = name[i];
+        if (!(isalnum(static_cast<unsigned char>(c)) || c == ' ' || c == '_' || c == '-' || c == '.' || c == '(' || c == ')')) return false;
+    }
+    return true;
+}
 constexpr int kMinInterval = 20;
 constexpr int kMaxInterval = 5000;
 
@@ -233,6 +250,69 @@ void Bindings::load() {
         applyJson(doc.as<JsonArrayConst>(), err);
     }
     f.close();
+}
+
+std::vector<String> Bindings::presetNames() {
+    std::vector<String> out;
+    File dir = LittleFS.open(kPresetDir);
+    if (!dir || !dir.isDirectory()) return out;
+    for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
+        if (f.isDirectory()) continue;
+        String name = f.name();
+        const int slash = name.lastIndexOf('/');
+        if (slash >= 0) name = name.substring(slash + 1);
+        if (!name.endsWith(".json")) continue;
+        name.remove(name.length() - 5);
+        out.push_back(name);
+    }
+    std::sort(out.begin(), out.end(), [](const String& a, const String& b) { return strcasecmp(a.c_str(), b.c_str()) < 0; });
+    return out;
+}
+
+bool Bindings::presetExists(const String& name) {
+    return validPresetName(name) && LittleFS.exists(presetPath(name));
+}
+
+bool Bindings::savePreset(const String& name) const {
+    if (!validPresetName(name)) return false;
+    if (!LittleFS.exists(kPresetDir)) LittleFS.mkdir(kPresetDir);
+    JsonDocument doc;
+    toJson(doc.to<JsonArray>());
+    File f = LittleFS.open(presetPath(name), FILE_WRITE);
+    if (!f) return false;
+    serializeJson(doc, f);
+    f.close();
+    return true;
+}
+
+bool Bindings::loadPreset(const String& name) {
+    if (!presetExists(name)) return false;
+    File f = LittleFS.open(presetPath(name), FILE_READ);
+    if (!f) return false;
+    JsonDocument doc;
+    const bool ok = deserializeJson(doc, f) == DeserializationError::Ok && doc.is<JsonArray>();
+    f.close();
+    if (!ok) return false;
+    String err;
+    if (!applyJson(doc.as<JsonArrayConst>(), err)) return false;
+    return save();
+}
+
+bool Bindings::deletePreset(const String& name) {
+    return presetExists(name) && LittleFS.remove(presetPath(name));
+}
+
+bool Bindings::renamePreset(const String& from, const String& to) {
+    if (!presetExists(from) || !validPresetName(to) || LittleFS.exists(presetPath(to))) return false;
+    return LittleFS.rename(presetPath(from), presetPath(to));
+}
+
+String Bindings::freePresetName() {
+    for (int i = 1; i < 100; ++i) {
+        String name = "Preset " + String(i);
+        if (!LittleFS.exists(presetPath(name))) return name;
+    }
+    return "Preset 99";
 }
 
 bool Bindings::save() const {
