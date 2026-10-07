@@ -450,11 +450,13 @@ void Ui::drawSetupEdit(const UiModel& model) {
     const char* modName = Bindings::modifierName(s.modIndex);
     const bool hasGroup = s.group != 0;
     const bool macro = s.group == Bindings::kMacroGroup;
+    const String glyph = Bindings::keyPreview(keyName);
+    const String keyLabel = glyph.length() ? glyph + "   " + keyName : String(keyName);
     const int scriptCount = model.scripts ? static_cast<int>(model.scripts->size()) : 0;
     String scriptName = scriptCount == 0 ? String("no macros") : (*model.scripts)[s.keyIndex < scriptCount ? s.keyIndex : 0].name;
     const Field fields[Bindings::kSetupFields] = {
         {"Group", String(Bindings::groupName(s.group)), true},
-        {macro ? "Script" : "Key", macro ? fitText(scriptName, 170) : (hasGroup ? String(keyName) : String("-")), hasGroup},
+        {macro ? "Script" : "Key", macro ? fitText(scriptName, 170) : (hasGroup ? keyLabel : String("-")), hasGroup},
         {"Modifier", macro ? String("-") : (modName[0] ? String(modName) : String("none")), !macro},
         {"Behavior", macro ? String("toggle") : (s.behavior == BindBehavior::Normal ? String("hold") : String(Bindings::behaviorName(s.behavior))), !macro},
         {"Interval", String(s.interval) + " ms", !macro && (s.behavior == BindBehavior::Burst || s.behavior == BindBehavior::ToggleBurst)},

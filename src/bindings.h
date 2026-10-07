@@ -69,6 +69,7 @@ public:
     static const char* modifierName(int index);
     static void split(const String& keys, int& group, int& keyIndex, int& modIndex);
     static String compose(int group, int keyIndex, int modIndex);
+    static String keyPreview(const char* key);
 
     void load();
     bool save() const;

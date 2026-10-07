@@ -23,6 +23,29 @@ constexpr const char* kControl[] = {"space", "enter", "esc", "tab", "backspace",
                                     "scrolllock", "pause", "menu", "mute", "volumeup", "volumedown"};
 constexpr const char* kSymbols[] = {"minus", "equal", "lbracket", "rbracket", "backslash", "semicolon",
                                     "quote", "grave", "comma", "period", "slash"};
+constexpr const char* kShifted[] = {"shift+1", "shift+2", "shift+3", "shift+4", "shift+5", "shift+6", "shift+7",
+                                    "shift+8", "shift+9", "shift+0", "shift+minus", "shift+equal", "shift+lbracket",
+                                    "shift+rbracket", "shift+backslash", "shift+semicolon", "shift+quote", "shift+grave",
+                                    "shift+comma", "shift+period", "shift+slash"};
+
+struct Glyph {
+    const char* key;
+    const char* glyph;
+};
+
+constexpr Glyph kGlyphs[] = {
+    {"minus", "-"},          {"equal", "="},          {"lbracket", "["},       {"rbracket", "]"},
+    {"backslash", "\\"},     {"semicolon", ";"},      {"quote", "'"},          {"grave", "`"},
+    {"comma", ","},          {"period", "."},         {"slash", "/"},          {"space", "' '"},
+    {"shift+1", "!"},        {"shift+2", "@"},        {"shift+3", "#"},        {"shift+4", "$"},
+    {"shift+5", "%"},        {"shift+6", "^"},        {"shift+7", "&"},        {"shift+8", "*"},
+    {"shift+9", "("},        {"shift+0", ")"},        {"shift+minus", "_"},    {"shift+equal", "+"},
+    {"shift+lbracket", "{"}, {"shift+rbracket", "}"}, {"shift+backslash", "|"}, {"shift+semicolon", ":"},
+    {"shift+quote", "\""},   {"shift+grave", "~"},    {"shift+comma", "<"},    {"shift+period", ">"},
+    {"shift+slash", "?"},    {"kpplus", "+"},         {"kpminus", "-"},        {"kpasterisk", "*"},
+    {"kpslash", "/"},        {"kpdot", "."},
+};
+
 constexpr const char* kNumpad[] = {"kp0", "kp1", "kp2", "kp3", "kp4", "kp5", "kp6", "kp7", "kp8", "kp9",
                                    "kpenter", "kpplus", "kpminus", "kpasterisk", "kpslash", "kpdot", "numlock"};
 
@@ -42,6 +65,7 @@ constexpr KeyGroup kGroups[] = {
     KEY_GROUP("navigation", kNavigation),
     KEY_GROUP("control", kControl),
     KEY_GROUP("symbols", kSymbols),
+    KEY_GROUP("shifted", kShifted),
     KEY_GROUP("numpad", kNumpad),
 };
 #undef KEY_GROUP
@@ -160,6 +184,15 @@ void Bindings::split(const String& keys, int& group, int& keyIndex, int& modInde
     group = 0;
     keyIndex = 0;
     modIndex = 0;
+    for (int g = 1; g < kGroupCount; ++g) {
+        for (int i = 0; i < kGroups[g].count; ++i) {
+            if (keys.equalsIgnoreCase(kGroups[g].keys[i]) && strchr(kGroups[g].keys[i], '+') != nullptr) {
+                group = g;
+                keyIndex = i;
+                return;
+            }
+        }
+    }
     String mods;
     String mainKey;
     String token;
@@ -199,6 +232,14 @@ void Bindings::split(const String& keys, int& group, int& keyIndex, int& modInde
             break;
         }
     }
+}
+
+String Bindings::keyPreview(const char* key) {
+    if (key == nullptr) return String();
+    for (const Glyph& g : kGlyphs) {
+        if (strcmp(g.key, key) == 0) return String(g.glyph);
+    }
+    return String();
 }
 
 String Bindings::compose(int group, int keyIndex, int modIndex) {
