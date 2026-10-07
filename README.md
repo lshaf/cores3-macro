@@ -11,7 +11,7 @@ USB macro pad firmware for the M5Stack CoreS3 with a Faces Gamepad3 controller. 
 ## Downloads
 
 - Web manager, hosted: https://lshaf.github.io/cores3-macro/ (Chrome or Edge, click Connect).
-- Firmware binaries: every push to `main` builds them as a workflow artifact; tags `v*` publish a GitHub release with `core-macro-full.bin` (flash at 0x0), the separate parts, and `littlefs.bin` with the sample macros.
+- Firmware binaries: built only when a release is made. Releases are automatic: bump `kFirmwareVersion` in `src/config.h`, add a matching `## [x.y.z]` section to `CHANGELOG.md`, and push to `main`. The Release workflow builds, tags `vx.y.z` and publishes a GitHub release with those notes, `core-macro-full.bin` (flash at 0x0), the separate parts, and `littlefs.bin` with the sample macros.
 
 Flash a release without PlatformIO:
 
@@ -127,6 +127,8 @@ END
 | `{"cmd":"mode","set":"bind"}` | switches between `macro` and `bind`; without `set` just reads |
 | `{"cmd":"presets"}` | `presets: [{name}]`, `active` |
 | `{"cmd":"presets","action":"save"\|"load"\|"delete","name":"x"}` and `{"cmd":"presets","action":"rename","from":"a","to":"b"}` | manage presets; each returns the list |
+| `{"cmd":"presets","action":"get","name":"x"}` | `name`, `binds` of that preset, plus the list |
+| `{"cmd":"presets","action":"put","name":"x","binds":[...]}` | creates or replaces preset x from the given bindings without loading it; if x is active the current bindings update too |
 
 State fields: `state` (`idle`, `running`, `finished`, `stopped`, `error`), `script`, `line`, `total`, `loop`, `loopCount` (-1 = forever), `loopDepth`, `elapsed` (ms), `error`, `usb`, `gamepad`.
 

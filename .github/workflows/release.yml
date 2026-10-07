@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/config.h", "CHANGELOG.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.tag.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: version
+        name: Read firmware version
+        run: |
+          VERSION=$(sed -n 's/.*kFirmwareVersion = "\([^"]*\)".*/\1/p' src/config.h)
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Firmware version $VERSION"
+
+      - id: tag
+        name: Check whether this version is already released
+        run: |
+          if git rev-parse -q --verify "refs/tags/v${{ steps.version.outputs.version }}" >/dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "v${{ steps.version.outputs.version }} already exists, nothing to release"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    uses: ./.github/workflows/firmware.yml
+
+  release:
+    needs: [check, build]
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: core-macro-firmware
+          path: dist
+
+      - name: Write release notes
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes-body.md
+          if [ ! -s notes-body.md ]; then
+            echo "No CHANGELOG.md entry for $VERSION; add a \"## [$VERSION]\" section." >&2
+            exit 1
+          fi
+          PREV=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          {
+            cat notes-body.md
+            echo
+            echo "## Install"
+            echo
+            echo "Flash the whole image (bootloader, partitions and app) with esptool:"
+            echo
+            echo '```sh'
+            echo 'pip install esptool'
+            echo 'esptool --chip esp32s3 write-flash 0x0 core-macro-full.bin'
+            echo '```'
+            echo
+            echo "Updating from an earlier version keeps your macros, bindings and presets. To load the sample macros on a fresh device, also flash \`littlefs.bin\` at its partition offset (\`pio run -t uploadfs\` does this for you)."
+            echo
+            echo "Open the web manager at https://${REPO%%/*}.github.io/${REPO#*/}/ in Chrome or Edge and click Connect."
+            echo
+            echo "| File | What it is |"
+            echo "| --- | --- |"
+            echo "| \`core-macro-full.bin\` | everything merged, flash at 0x0 |"
+            echo "| \`firmware.bin\` | app only, flash at 0x10000 |"
+            echo "| \`bootloader.bin\`, \`partitions.bin\`, \`boot_app0.bin\` | parts at 0x0, 0x8000, 0xe000 |"
+            echo "| \`littlefs.bin\` | storage image with the sample macros |"
+            if [ -n "$PREV" ]; then
+              echo
+              echo "**Full changes:** https://github.com/$REPO/compare/$PREV...v$VERSION"
+            fi
+          } > notes.md
+          cat notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Core Macro ${{ needs.check.outputs.version }}
+          body_path: notes.md
+          files: dist/*
