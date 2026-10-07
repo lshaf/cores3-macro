@@ -67,7 +67,7 @@ button, input, select, textarea {
 }
 
 h1, h2, h3 { margin: 0; font-weight: 500; }
-h1 { font-size: 28px; line-height: 1.2; }
+h1 { font-size: 20px; line-height: 1.2; }
 h2 { font-size: 20px; line-height: 1.3; }
 h3 { font-size: 13px; font-weight: 700; line-height: 1.4; }
 p { margin: 0; }
@@ -87,18 +87,75 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 }
 
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "title pill tabs actions";
   align-items: center;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  padding: 14px 24px;
+  column-gap: 16px;
+  min-height: 60px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--hair);
 }
 
+.topbar h1 { grid-area: title; }
+.topbar .pill { grid-area: pill; }
+
 .topbar-right {
-  margin-left: auto;
+  grid-area: actions;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  padding: 10px 0;
+}
+
+.tabs {
+  grid-area: tabs;
+  align-self: stretch;
+  display: flex;
+  gap: 2px;
+  margin-left: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover { color: var(--text); }
+.tab:focus-visible { outline-offset: -6px; }
+.tab[aria-selected="true"] { color: var(--text); }
+
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--amber);
+}
+
+.tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
 }
 
 .pill {
@@ -110,6 +167,7 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
   border-radius: 999px;
   font-size: 13px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .pill i {
@@ -158,25 +216,44 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
   color: var(--muted);
 }
 
-.layout {
+.shell {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 300px;
-  grid-template-areas: "left editor right";
-  gap: 28px 24px;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 28px;
   align-items: start;
   padding: 24px;
 }
 
-.col-left { grid-area: left; }
-.col-editor { grid-area: editor; }
-.col-right { grid-area: right; }
-
-.col-left, .col-right {
+.rail {
+  position: sticky;
+  top: 24px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 16px;
   min-width: 0;
 }
+
+.rail-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hair);
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.rail .device-info { margin-top: 4px; }
+
+.workspace { min-width: 0; }
 
 .section-head {
   display: flex;
@@ -564,11 +641,13 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
   cursor: pointer;
 }
 
+.script-open:disabled { cursor: default; color: var(--muted); }
 .script-open:focus-visible { outline-offset: -2px; }
 .script.active .script-open { background: var(--surface); }
 .script.draft .script-open { cursor: default; }
 
-.script.selected .script-open::before {
+.script.selected .script-open::before,
+.script.target .script-open::before {
   content: "";
   position: absolute;
   left: 0;
@@ -579,12 +658,19 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
   background: var(--amber);
 }
 
+.script.target .script-open { background: var(--surface); }
+
 .script-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.script-sub {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .script-size {
@@ -594,12 +680,19 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 }
 
 .tag {
+  flex: none;
   padding: 0 6px;
   border: 1px solid var(--hair);
   border-radius: 999px;
   font-size: 11px;
   line-height: 16px;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.tag-active {
+  border-color: rgba(63, 212, 124, 0.5);
+  color: var(--green);
 }
 
 .run-dot, .dirty-dot {
@@ -623,10 +716,17 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 }
 
 .script.active .script-actions,
+.script.target .script-actions,
 .script.confirming .script-actions,
 .script:focus-within .script-actions { display: flex; }
 
-.script.active .script-actions { background: var(--surface); }
+.script.active .script-actions,
+.script.target .script-actions { background: var(--surface); }
+
+.script .confirm-strip {
+  padding: 0 8px 8px 12px;
+  background: var(--surface);
+}
 
 .rename {
   display: flex;
@@ -655,13 +755,26 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 }
 
 .device-info {
-  margin-top: 12px;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--muted);
 }
 
-.editor { min-width: 0; }
+.device-info:empty { display: none; }
+
+.macros {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 300px;
+  grid-template-areas: "list editor ref";
+  gap: 24px;
+  align-items: start;
+}
+
+.macros.ref-closed { grid-template-columns: 240px minmax(0, 1fr) auto; }
+
+.macro-list { grid-area: list; min-width: 0; }
+.editor { grid-area: editor; min-width: 0; }
+.ref { grid-area: ref; min-width: 0; }
 
 .editor-empty {
   display: flex;
@@ -730,8 +843,8 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 
 .code {
   display: flex;
-  height: 60vh;
-  min-height: 320px;
+  height: 62vh;
+  min-height: 340px;
   overflow: hidden;
   border: 1px solid var(--hair);
   border-radius: var(--radius);
@@ -817,8 +930,6 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 .shortcuts { font-size: 12px; color: var(--muted); }
 .confirm-strip { font-size: 13px; }
 
-.ref-toggle { display: none; }
-
 .ref-intro {
   max-width: 60ch;
   font-size: 13px;
@@ -851,6 +962,7 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
   color: var(--muted);
 }
 
+.keys + .keys { margin-top: 8px; }
 .keys code { color: var(--text); }
 
 .example {
@@ -876,58 +988,9 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
   white-space: pre;
 }
 
-.binds, .settings {
-  padding-top: 20px;
-  border-top: 1px solid var(--hair);
-}
+.ref.closed .ref-body { display: none; }
 
 .saved-note { font-size: 12px; color: var(--green); }
-
-.bind-target {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  font-size: 13px;
-}
-
-.bind-target label { color: var(--muted); }
-.bind-target select { flex: 1; min-width: 0; }
-
-.bind-target-note {
-  margin: -2px 0 10px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.bind-target-confirm { margin-bottom: 10px; }
-
-.bind-rows { border-top: 1px solid var(--hair); }
-
-.bind-row {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 84px;
-  gap: 6px 8px;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--hair);
-}
-
-.bind-label { font-size: 13px; }
-.bind-row.pressed .bind-label { color: var(--green); }
-
-.bind-keys {
-  min-width: 0;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius);
-  background: var(--editor);
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-
-.bind-keys::placeholder { color: var(--muted); }
 
 select {
   height: 32px;
@@ -939,58 +1002,6 @@ select {
 }
 
 select:disabled { opacity: 0.5; }
-
-.bind-script {
-  min-width: 0;
-  width: 100%;
-}
-
-.bind-interval {
-  grid-column: 2 / -1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.bind-error {
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--red);
-}
-
-.bind-hint {
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.bind-hint a {
-  color: var(--text);
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-}
-
-.presets { margin-top: 20px; }
-.presets .section-head { margin-bottom: 6px; }
-.presets .section-head h3 { flex: 1; }
-.presets .section-head .count { font-size: 12px; }
-.preset-new { padding: 0 0 10px; }
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
-  font-size: 13px;
-}
-
-.field-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.unit { font-size: 13px; color: var(--muted); }
 
 input[type="number"] {
   width: 92px;
@@ -1010,6 +1021,568 @@ input[type="range"] {
 }
 
 input:disabled { opacity: 0.5; }
+
+.binds-ws {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 28px;
+  align-items: start;
+}
+
+.bind-main {
+  min-width: 0;
+  container: bindmain / inline-size;
+}
+
+.bind-head {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.bind-head-text { flex: 1; min-width: 220px; }
+
+.bind-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.bind-title-row h2 { min-width: 0; overflow-wrap: anywhere; }
+
+.bind-sub {
+  margin-top: 4px;
+  max-width: 64ch;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.bind-save {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.pad-wrap { container: pad / inline-size; }
+
+.pad-face {
+  --cell: clamp(58px, 12.5cqi, 100px);
+  --cellh: clamp(56px, 9cqi, 70px);
+  --ab: clamp(66px, 12.5cqi, 100px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px clamp(12px, 2.5cqi, 24px);
+  padding: 30px clamp(16px, 3.5cqi, 36px);
+  border: 1px solid var(--hair);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 14px 14px, var(--hair) 3px, transparent 3.5px),
+    radial-gradient(circle at calc(100% - 14px) 14px, var(--hair) 3px, transparent 3.5px),
+    radial-gradient(circle at 14px calc(100% - 14px), var(--hair) 3px, transparent 3.5px),
+    radial-gradient(circle at calc(100% - 14px) calc(100% - 14px), var(--hair) 3px, transparent 3.5px),
+    var(--surface);
+}
+
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, var(--cell));
+  grid-template-rows: repeat(3, var(--cellh));
+}
+
+.dpad-hub {
+  grid-area: 2 / 2;
+  background: radial-gradient(circle, #252D38 0 30%, var(--d-keycap) 31%);
+}
+
+.pk {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  background: var(--d-keycap);
+  color: var(--text);
+  text-align: center;
+  cursor: pointer;
+}
+
+.pk:focus-visible { z-index: 2; outline-offset: 3px; }
+
+.pk-up { grid-area: 1 / 2; border-radius: 10px 10px 0 0; }
+.pk-left { grid-area: 2 / 1; border-radius: 10px 0 0 10px; }
+.pk-right { grid-area: 2 / 3; border-radius: 0 10px 10px 0; }
+.pk-down { grid-area: 3 / 2; border-radius: 0 0 10px 10px; }
+
+.pk-name {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.pk-keys {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.pk-keys.unbound { color: var(--d-dim); }
+
+.pk-mode {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.pk:hover .pk-name { color: var(--text); }
+
+.pk[aria-checked="true"] {
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px var(--amber);
+}
+
+.pk[aria-checked="true"] .pk-name { color: var(--amber); }
+
+.pk.pressed { background: var(--d-green-tint); }
+.pk.pressed .pk-name, .pk.pressed .pk-keys { color: var(--green); }
+
+.pk-on {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--green);
+  color: var(--d-bg);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 14px;
+}
+
+.ab {
+  position: relative;
+  flex: none;
+  width: calc(var(--ab) * 2 + 8px);
+  height: calc(var(--ab) * 1.62);
+}
+
+.pk-round {
+  position: absolute;
+  width: var(--ab);
+  height: var(--ab);
+  padding: 8px 10px;
+  border-radius: 50%;
+}
+
+.pk-round .pk-name { font-size: 17px; }
+.pk-round .pk-keys { max-width: 92%; }
+.pk-round .pk-on { top: 2px; right: 50%; transform: translateX(50%); }
+.pk-b { left: 0; bottom: 0; }
+.pk-a { right: 0; top: 0; }
+
+.pad-sys {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.sys {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.sys-cap {
+  width: 46px;
+  height: 14px;
+  margin-bottom: 4px;
+  border: 1px dashed var(--d-dim);
+  border-radius: 999px;
+}
+
+.sys small { font-size: 11px; color: var(--d-dim); }
+
+@container pad (max-width: 599px) {
+  .pad-face { justify-content: space-around; column-gap: 12px; }
+  .pad-sys { order: 3; flex-basis: 100%; }
+  .pk-keys { font-size: 11px; }
+  .pk { padding: 4px 5px; }
+  .pk-on { top: 4px; right: 4px; width: 8px; height: 8px; padding: 0; font-size: 0; }
+  .pk-round .pk-on { top: 4px; }
+}
+
+.bind-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.bind-hint a, .detail-help a {
+  color: var(--text);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.bind-error {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--red);
+}
+
+.bind-lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+@container bindmain (min-width: 700px) {
+  .bind-lower { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+}
+
+.detail-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.detail-head h3 { flex: 1; font-size: 16px; font-weight: 500; }
+
+.detail-state { font-size: 12px; color: var(--green); }
+
+.detail fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.detail legend, .detail-label {
+  display: block;
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.radio-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+}
+
+.radio-seg label { position: relative; display: inline-flex; }
+
+.radio-seg input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.radio-seg input:disabled { cursor: default; }
+
+.radio-seg span {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.radio-seg label:hover input:not(:disabled) + span { color: var(--text); }
+
+.radio-seg input:checked + span {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.radio-seg input:focus-visible + span {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+
+.radio-seg input:disabled + span { opacity: 0.45; }
+
+.bind-keys {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: var(--editor);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.bind-keys::placeholder { color: var(--d-dim); }
+.bind-keys:focus-visible { outline: none; border-color: var(--amber); }
+
+.bind-script { width: 100%; }
+
+.detail-help {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chip {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chip:hover:not(:disabled) { border-color: var(--muted); }
+.chip[aria-pressed="true"], .chip[aria-expanded="true"] { border-color: var(--amber); color: var(--amber); }
+.chip:disabled { opacity: 0.45; cursor: default; }
+.chip-text { font-family: var(--font-ui); }
+
+.symbols {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 2px;
+  margin-top: 8px;
+  padding: 6px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: var(--editor);
+}
+
+.sym {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sym:hover:not(:disabled) { background: var(--surface); }
+.sym:focus-visible { outline-offset: -2px; }
+.sym:disabled { opacity: 0.45; cursor: default; }
+.sym b { width: 14px; font-size: 14px; color: var(--amber); text-align: center; }
+.sym span { color: var(--muted); }
+
+.interval-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.summary {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.summary caption {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.summary th {
+  padding: 0 8px 6px;
+  border-bottom: 1px solid var(--hair);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: left;
+}
+
+.summary td {
+  padding: 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.summary tbody tr { cursor: pointer; }
+.summary tbody tr:hover td { background: rgba(34, 42, 52, 0.6); }
+.summary tr.sel td { background: var(--surface); }
+
+.sum-btn {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  background: none;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sum-btn:focus-visible { outline-offset: -2px; }
+
+.summary tr.sel .sum-btn::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--amber);
+}
+
+.summary tr.pressed .sum-btn { color: var(--green); }
+
+.sum-cell {
+  display: block;
+  padding: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sum-keys { font-family: var(--font-mono); }
+.sum-keys.unbound, .sum-mode { color: var(--muted); }
+.sum-mode.on { color: var(--green); }
+
+.presets-panel { min-width: 0; }
+.presets-panel .section-head { flex-wrap: wrap; }
+.preset-new { padding: 0 0 10px; }
+.preset-tools { margin-bottom: 12px; }
+
+.settings-ws {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 36px 40px;
+  max-width: 1000px;
+}
+
+.panel {
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--hair);
+}
+
+.panel.wide { grid-column: 1 / -1; }
+
+.panel-intro {
+  max-width: 64ch;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.unit { font-size: 13px; color: var(--muted); }
+
+.info-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 24px;
+  margin: 14px 0 12px;
+  font-size: 13px;
+}
+
+.info-list dt { color: var(--muted); }
+.info-list dd { margin: 0; font-family: var(--font-mono); overflow-wrap: anywhere; }
+
+.controls-table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.controls-table th, .controls-table td {
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--hair);
+  text-align: left;
+  vertical-align: top;
+}
+
+.controls-table thead th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.controls-table tbody th {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.controls-table td { color: var(--muted); }
 
 .toasts {
   position: fixed;
@@ -1079,29 +1652,86 @@ input:disabled { opacity: 0.5; }
   margin-top: 18px;
 }
 
-@media (max-width: 1099px) {
-  .layout {
-    grid-template-columns: 300px minmax(0, 1fr);
-    grid-template-areas:
-      "left editor"
-      "left right";
+@media (min-width: 1280px) {
+  .ref.open {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    padding-right: 4px;
   }
-  .ref-toggle { display: inline-flex; }
-  .ref:not(.open) .ref-body { display: none; }
+  .ref.closed .section-head { margin: 0; }
+  .ref.closed .section-head h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .ref.closed .ref-toggle {
+    writing-mode: vertical-rl;
+    width: 32px;
+    height: auto;
+    padding: 12px 0;
+  }
+}
+
+@media (max-width: 1279px) {
+  .shell { grid-template-columns: 260px minmax(0, 1fr); gap: 24px; }
+  .macros, .macros.ref-closed {
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-areas:
+      "list editor"
+      "list ref";
+  }
+  .binds-ws { grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; }
+}
+
+@media (max-width: 1079px) {
+  .binds-ws { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+}
+
+@media (max-width: 959px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+  .rail {
+    position: static;
+    display: grid;
+    grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+    gap: 16px 24px;
+    align-items: start;
+  }
+  .rail-controls { padding-top: 0; border-top: 0; }
 }
 
 @media (max-width: 719px) {
-  .layout {
+  .topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title pill actions"
+      "tabs tabs tabs";
+    padding: 0 16px;
+  }
+  .topbar .pill { justify-self: start; }
+  .tabs { margin: 0 -16px; padding: 0 2px; border-top: 1px solid var(--hair); min-height: 44px; }
+  .macros, .macros.ref-closed {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "left"
+      "list"
       "editor"
-      "right";
-    gap: 24px;
-    padding: 16px;
+      "ref";
   }
-  .topbar { padding: 12px 16px; }
+  .settings-ws { grid-template-columns: minmax(0, 1fr); }
   .code { height: 50vh; min-height: 260px; }
+}
+
+@media (max-width: 599px) {
+  .rail { grid-template-columns: minmax(0, 1fr); }
+  .rail-controls { padding-top: 14px; border-top: 1px solid var(--hair); }
+  .controls-table tbody th { white-space: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1114,9 +1744,10 @@ input:disabled { opacity: 0.5; }
 <header class="topbar">
   <h1>Core Macro</h1>
   <span class="pill" id="connPill"><i aria-hidden="true"></i><span id="connText">Not connected</span></span>
-  <div class="seg off" id="modeSeg" role="group" aria-label="Device mode">
-    <button type="button" id="modeMacro" aria-pressed="false" disabled>Macros</button>
-    <button type="button" id="modeBind" aria-pressed="false" disabled>Bindings</button>
+  <div class="tabs" id="tabs" role="tablist" aria-label="Workspace">
+    <button type="button" class="tab" id="tabMacros" role="tab" data-tab="macros" aria-selected="true" aria-controls="panelMacros">Macros<span class="tab-dot" id="tabDotMacros" title="Unsaved macro" hidden></span></button>
+    <button type="button" class="tab" id="tabBinds" role="tab" data-tab="binds" aria-selected="false" aria-controls="panelBinds" tabindex="-1">Bindings<span class="tab-dot" id="tabDotBinds" title="Unsaved bindings" hidden></span></button>
+    <button type="button" class="tab" id="tabSettings" role="tab" data-tab="settings" aria-selected="false" aria-controls="panelSettings" tabindex="-1">Settings</button>
   </div>
   <div class="topbar-right">
     <button type="button" class="btn btn-primary" id="connectBtn">Connect</button>
@@ -1124,9 +1755,9 @@ input:disabled { opacity: 0.5; }
   </div>
 </header>
 
-<main class="layout">
-  <aside class="col-left">
-    <section aria-label="Device">
+<div class="shell">
+  <aside class="rail" aria-label="Device">
+    <div class="rail-device">
       <div class="mirror-wrap off" id="mirrorWrap">
         <div class="screen" id="screen" aria-hidden="true">
           <div class="d-top">
@@ -1170,222 +1801,373 @@ input:disabled { opacity: 0.5; }
           </div>
         </div>
       </div>
-      <p class="mirror-caption" id="caption">Not connected</p>
-    </section>
+      <p class="mirror-caption" id="caption" aria-live="polite">Not connected</p>
+    </div>
 
-    <section aria-labelledby="macrosTitle">
-      <div class="section-head">
-        <h2 id="macrosTitle">Macros <span class="count" id="scriptCount"></span></h2>
-        <button type="button" class="btn btn-sm" id="newBtn">New macro</button>
+    <div class="rail-controls">
+      <div class="control">
+        <span id="modeLabel">Device mode</span>
+        <div class="seg off" id="modeSeg" role="group" aria-labelledby="modeLabel">
+          <button type="button" id="modeMacro" aria-pressed="false" disabled>Macros</button>
+          <button type="button" id="modeBind" aria-pressed="false" disabled>Bind</button>
+        </div>
       </div>
-      <ul class="scripts" id="scriptList"></ul>
-      <p class="empty" id="scriptsOffline">Connect the device to see its macros.</p>
-      <p class="empty" id="scriptsEmpty" hidden>No macros on the device yet. Create one.</p>
+      <div class="control">
+        <span id="outLabel">Output</span>
+        <div class="seg off" id="outSeg" role="group" aria-labelledby="outLabel">
+          <button type="button" id="outUsb" aria-pressed="false" disabled>USB</button>
+          <button type="button" id="outBle" aria-pressed="false" disabled>Bluetooth</button>
+        </div>
+      </div>
       <p class="device-info" id="deviceInfo"></p>
-    </section>
+    </div>
   </aside>
 
-  <section class="col-editor editor" aria-label="Editor">
-    <div class="editor-empty" id="editorEmpty">
-      <p>Pick a macro from the list, or start a new one.</p>
-      <button type="button" class="btn btn-primary" id="newBtnEmpty">New macro</button>
-    </div>
-    <div class="editor-body" id="editorBody" hidden>
-      <div class="editor-head">
-        <label class="sr-only" for="nameInput">Macro name</label>
-        <input class="name-input" id="nameInput" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Macro name">
-        <span class="editor-dirty" id="editorDirty" title="Unsaved changes" hidden></span>
-        <span class="size-readout" id="sizeReadout"></span>
-      </div>
-      <p class="name-hint" id="nameHint" hidden></p>
-      <div class="code">
-        <div class="gutter" id="gutter" aria-hidden="true"></div>
-        <label class="sr-only" for="src">Macro script</label>
-        <textarea class="src" id="src" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
-      </div>
-      <div class="status-line" id="statusLine" aria-live="polite"></div>
-      <div class="editor-actions" id="editorActions">
-        <button type="button" class="btn btn-primary" id="saveBtn">Save to device</button>
-        <button type="button" class="btn" id="runBtn">Run</button>
-        <button type="button" class="btn" id="stopBtn">Stop</button>
-        <span class="shortcuts" id="shortcuts"></span>
-        <span class="spacer"></span>
-        <button type="button" class="btn btn-danger" id="deleteBtn">Delete</button>
-      </div>
-      <div class="confirm-strip" id="confirmStrip" hidden>
-        <span id="confirmText"></span>
-        <button type="button" class="btn btn-danger" id="confirmYes">Delete</button>
-        <button type="button" class="btn" id="confirmNo">Cancel</button>
-      </div>
-    </div>
-  </section>
-
-  <aside class="col-right">
-    <section class="ref" id="ref" aria-labelledby="refTitle">
-      <div class="section-head">
-        <h2 id="refTitle">Reference</h2>
-        <button type="button" class="btn btn-sm ref-toggle" id="refToggle" aria-expanded="false" aria-controls="refBody">Show</button>
-      </div>
-      <div class="ref-body" id="refBody">
-        <p class="ref-intro">One command per line. Commands are case-insensitive. Lines starting with <code>#</code>, <code>&#47;&#47;</code> or <code>REM</code> are comments.</p>
-
-        <div class="ref-group">
-          <h3>Examples</h3>
-          <div id="examples"></div>
-        </div>
-
-        <div class="ref-group">
-          <h3>Timing</h3>
-          <dl class="ref-list">
-            <dt>DELAY 500</dt>
-            <dd>Wait. Milliseconds by default; <code>250ms</code> and <code>1.5s</code> also work. Aliases SLEEP, WAIT.</dd>
-            <dt>DEFAULT_DELAY 100</dt>
-            <dd>Delay added after every command.</dd>
-            <dt>TYPE_DELAY 20</dt>
-            <dd>Delay between typed characters for later STRING lines. Default 0.</dd>
-          </dl>
-        </div>
-
-        <div class="ref-group">
-          <h3>Typing</h3>
-          <dl class="ref-list">
-            <dt>STRING hello world</dt>
-            <dd>Type the rest of the line exactly. Alias TYPE.</dd>
-            <dt>STRINGLN hello world</dt>
-            <dd>Type the text, then press Enter. Alias TYPELN.</dd>
-          </dl>
-        </div>
-
-        <div class="ref-group">
-          <h3>Keys</h3>
-          <dl class="ref-list">
-            <dt>KEY ctrl+c</dt>
-            <dd>Press and release a combo. Join keys with <code>+</code> or spaces: <code>KEY gui r</code>, <code>KEY alt+f4</code>, <code>KEY f5</code>. Aliases TAP, PRESS.</dd>
-            <dt>ENTER</dt>
-            <dd>A line that is just a combo also works, like <code>CTRL+SHIFT+T</code>.</dd>
-            <dt>HOLD shift</dt>
-            <dd>Press and keep held.</dd>
-            <dt>RELEASE shift</dt>
-            <dd>Release those keys. <code>RELEASE</code> alone releases everything. Everything is released when the macro ends or stops.</dd>
-          </dl>
-        </div>
-
-        <div class="ref-group">
-          <h3>Loops</h3>
-          <dl class="ref-list">
-            <dt>LOOP 5 … END</dt>
-            <dd>Repeat the block 5 times. Loops nest. <code>LOOP 0</code> skips the block.</dd>
-            <dt>LOOP forever</dt>
-            <dd>Repeat until B or Stop. Same as <code>LOOP</code> with no number. Aliases REPEAT, ENDLOOP, DONE.</dd>
-          </dl>
-        </div>
-
-        <div class="ref-group">
-          <h3>Mouse</h3>
-          <dl class="ref-list">
-            <dt>CLICK right</dt>
-            <dd>Click left (default), right or middle.</dd>
-            <dt>MOUSE_PRESS left</dt>
-            <dd>Hold a mouse button. <code>MOUSE_RELEASE left</code> lets it go.</dd>
-            <dt>MOUSE 10 -5</dt>
-            <dd>Move the pointer relative to where it is, in pixels.</dd>
-            <dt>SCROLL -3</dt>
-            <dd>Wheel. Negative scrolls down.</dd>
-          </dl>
-        </div>
-
-        <div class="ref-group">
-          <h3>Media</h3>
-          <dl class="ref-list">
-            <dt>MEDIA playpause</dt>
-            <dd>play, pause, playpause, next, prev, stop, mute, volup, voldown, brightnessup, brightnessdown, eject, calculator, email, browser, home, back, forward, refresh, search, sleep.</dd>
-          </dl>
-        </div>
-
-        <div class="ref-group">
-          <h3 id="keyNames">Key names</h3>
-          <p class="keys">
-            <code>ctrl</code> <code>shift</code> <code>alt</code> <code>gui</code> (also win, cmd, meta, super) <code>rctrl</code> <code>rshift</code> <code>ralt</code> <code>rgui</code> <code>altgr</code>
-            <code>enter</code> <code>esc</code> <code>tab</code> <code>space</code> <code>backspace</code> <code>delete</code> <code>insert</code> <code>home</code> <code>end</code> <code>pageup</code> <code>pagedown</code> <code>up</code> <code>down</code> <code>left</code> <code>right</code> <code>f1</code> to <code>f24</code>
-            <code>capslock</code> <code>printscreen</code> <code>scrolllock</code> <code>pause</code> <code>numlock</code> <code>menu</code> <code>kp0</code> to <code>kp9</code> <code>kpenter</code> <code>kpplus</code> <code>kpminus</code> <code>kpasterisk</code> <code>kpslash</code> <code>kpdot</code>
-            <code>minus</code> <code>equal</code> <code>lbracket</code> <code>rbracket</code> <code>backslash</code> <code>semicolon</code> <code>quote</code> <code>grave</code> <code>comma</code> <code>period</code> <code>slash</code>,
-            any single letter or digit, or one of <code>- = [ ] \ ; ' ` , . /</code>
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section class="binds" aria-labelledby="bindsTitle">
-      <div class="section-head">
-        <h2 id="bindsTitle">Bindings</h2>
-        <span class="binds-dirty" id="bindsDirty" title="Unsaved changes" hidden></span>
-        <span class="saved-note" id="bindsSaved" hidden>Saved</span>
-        <button type="button" class="btn btn-sm btn-primary" id="saveBindsBtn" disabled>Save bindings</button>
-      </div>
-      <div class="bind-target">
-        <label for="bindTargetInput">Editing</label>
-        <select id="bindTargetInput" disabled>
-          <option value="">Current bindings</option>
-        </select>
-      </div>
-      <p class="bind-target-note" id="bindTargetNote" hidden></p>
-      <div class="confirm-strip bind-target-confirm" id="bindTargetConfirm" hidden>
-        <span id="bindTargetConfirmText"></span>
-        <button type="button" class="btn btn-sm btn-danger" id="bindTargetYes">Switch</button>
-        <button type="button" class="btn btn-sm" id="bindTargetNo">Cancel</button>
-      </div>
-      <div class="bind-rows" id="bindRows"></div>
-      <p class="bind-error" id="bindError" hidden></p>
-      <p class="bind-hint">Press Select on the device to switch between macros and bindings. Combos use the same syntax as <code>KEY</code>, see <a href="#keyNames" id="keyNamesLink">Key names</a>.</p>
-      <div class="presets">
+  <main class="workspace">
+    <section class="macros" id="panelMacros" role="tabpanel" aria-labelledby="tabMacros">
+      <div class="macro-list">
         <div class="section-head">
-          <h3 id="presetsTitle">Presets <span class="count" id="presetCount"></span></h3>
-          <button type="button" class="btn btn-sm" id="presetSaveBtn" disabled>Save current as preset</button>
+          <h2 id="macrosTitle">Macros <span class="count" id="scriptCount"></span></h2>
+          <button type="button" class="btn btn-sm" id="newBtn">New macro</button>
         </div>
-        <div class="rename preset-new" id="presetNew" hidden>
-          <label class="sr-only" for="presetNameInput">Preset name</label>
-          <input class="rename-input" id="presetNameInput" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Preset name">
-          <p class="rename-hint" id="presetNewHint" hidden></p>
-          <div class="rename-actions">
-            <button type="button" class="btn btn-sm btn-primary" id="presetNewSave">Save preset</button>
-            <button type="button" class="btn btn-sm" id="presetNewCancel">Cancel</button>
+        <ul class="scripts" id="scriptList" aria-labelledby="macrosTitle"></ul>
+        <p class="empty" id="scriptsOffline">Connect the device to see its macros.</p>
+        <p class="empty" id="scriptsEmpty" hidden>No macros on the device yet. Create one.</p>
+      </div>
+
+      <section class="editor" aria-label="Editor">
+        <div class="editor-empty" id="editorEmpty">
+          <p>Pick a macro from the list, or start a new one.</p>
+          <button type="button" class="btn btn-primary" id="newBtnEmpty">New macro</button>
+        </div>
+        <div class="editor-body" id="editorBody" hidden>
+          <div class="editor-head">
+            <label class="sr-only" for="nameInput">Macro name</label>
+            <input class="name-input" id="nameInput" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Macro name">
+            <span class="editor-dirty" id="editorDirty" title="Unsaved changes" hidden></span>
+            <span class="size-readout" id="sizeReadout"></span>
+          </div>
+          <p class="name-hint" id="nameHint" hidden></p>
+          <div class="code">
+            <div class="gutter" id="gutter" aria-hidden="true"></div>
+            <label class="sr-only" for="src">Macro script</label>
+            <textarea class="src" id="src" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+          </div>
+          <div class="status-line" id="statusLine" aria-live="polite"></div>
+          <div class="editor-actions" id="editorActions">
+            <button type="button" class="btn btn-primary" id="saveBtn">Save to device</button>
+            <button type="button" class="btn" id="runBtn">Run</button>
+            <button type="button" class="btn" id="stopBtn">Stop</button>
+            <span class="shortcuts" id="shortcuts"></span>
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-danger" id="deleteBtn">Delete</button>
+          </div>
+          <div class="confirm-strip" id="confirmStrip" hidden>
+            <span id="confirmText"></span>
+            <button type="button" class="btn btn-danger" id="confirmYes">Delete</button>
+            <button type="button" class="btn" id="confirmNo">Cancel</button>
           </div>
         </div>
-        <ul class="scripts" id="presetList" aria-labelledby="presetsTitle"></ul>
-        <p class="empty" id="presetsOffline">Connect the device to see its presets.</p>
-        <p class="empty" id="presetsEmpty" hidden>No presets yet. Save the current bindings as one.</p>
-      </div>
+      </section>
+
+      <section class="ref open" id="ref" aria-labelledby="refTitle">
+        <div class="section-head">
+          <h2 id="refTitle">Reference</h2>
+          <button type="button" class="btn btn-sm ref-toggle" id="refToggle" aria-expanded="true" aria-controls="refBody">Hide</button>
+        </div>
+        <div class="ref-body" id="refBody">
+          <p class="ref-intro">One command per line. Commands are case-insensitive. Lines starting with <code>#</code>, <code>&#47;&#47;</code> or <code>REM</code> are comments.</p>
+
+          <div class="ref-group">
+            <h3>Examples</h3>
+            <div id="examples"></div>
+          </div>
+
+          <div class="ref-group">
+            <h3>Timing</h3>
+            <dl class="ref-list">
+              <dt>DELAY 500</dt>
+              <dd>Wait. Milliseconds by default; <code>250ms</code> and <code>1.5s</code> also work. Aliases SLEEP, WAIT.</dd>
+              <dt>DEFAULT_DELAY 100</dt>
+              <dd>Delay added after every command.</dd>
+              <dt>TYPE_DELAY 20</dt>
+              <dd>Delay between typed characters for later STRING lines. Default 0.</dd>
+            </dl>
+          </div>
+
+          <div class="ref-group">
+            <h3>Typing</h3>
+            <dl class="ref-list">
+              <dt>STRING hello world</dt>
+              <dd>Type the rest of the line exactly. Alias TYPE.</dd>
+              <dt>STRINGLN hello world</dt>
+              <dd>Type the text, then press Enter. Alias TYPELN.</dd>
+            </dl>
+          </div>
+
+          <div class="ref-group">
+            <h3>Keys</h3>
+            <dl class="ref-list">
+              <dt>KEY ctrl+c</dt>
+              <dd>Press and release a combo. Join keys with <code>+</code> or spaces: <code>KEY gui r</code>, <code>KEY alt+f4</code>, <code>KEY f5</code>. Aliases TAP, PRESS.</dd>
+              <dt>ENTER</dt>
+              <dd>A line that is just a combo also works, like <code>CTRL+SHIFT+T</code>.</dd>
+              <dt>HOLD shift</dt>
+              <dd>Press and keep held.</dd>
+              <dt>RELEASE shift</dt>
+              <dd>Release those keys. <code>RELEASE</code> alone releases everything. Everything is released when the macro ends or stops.</dd>
+            </dl>
+          </div>
+
+          <div class="ref-group">
+            <h3>Loops</h3>
+            <dl class="ref-list">
+              <dt>LOOP 5 … END</dt>
+              <dd>Repeat the block 5 times. Loops nest. <code>LOOP 0</code> skips the block.</dd>
+              <dt>LOOP forever</dt>
+              <dd>Repeat until B or Stop. Same as <code>LOOP</code> with no number. Aliases REPEAT, ENDLOOP, DONE.</dd>
+            </dl>
+          </div>
+
+          <div class="ref-group">
+            <h3>Mouse</h3>
+            <dl class="ref-list">
+              <dt>CLICK right</dt>
+              <dd>Click left (default), right or middle.</dd>
+              <dt>MOUSE_PRESS left</dt>
+              <dd>Hold a mouse button. <code>MOUSE_RELEASE left</code> lets it go.</dd>
+              <dt>MOUSE 10 -5</dt>
+              <dd>Move the pointer relative to where it is, in pixels.</dd>
+              <dt>SCROLL -3</dt>
+              <dd>Wheel. Negative scrolls down.</dd>
+            </dl>
+          </div>
+
+          <div class="ref-group">
+            <h3>Media</h3>
+            <dl class="ref-list">
+              <dt>MEDIA playpause</dt>
+              <dd>play, pause, playpause, next, prev, stop, mute, volup, voldown, brightnessup, brightnessdown, eject, calculator, email, browser, home, back, forward, refresh, search, sleep.</dd>
+            </dl>
+          </div>
+
+          <div class="ref-group">
+            <h3 id="keyNames" tabindex="-1">Key names</h3>
+            <p class="keys">
+              <code>ctrl</code> <code>shift</code> <code>alt</code> <code>gui</code> (also win, cmd, meta, super) <code>rctrl</code> <code>rshift</code> <code>ralt</code> <code>rgui</code> <code>altgr</code>
+              <code>enter</code> <code>esc</code> <code>tab</code> <code>space</code> <code>backspace</code> <code>delete</code> <code>insert</code> <code>home</code> <code>end</code> <code>pageup</code> <code>pagedown</code> <code>up</code> <code>down</code> <code>left</code> <code>right</code> <code>f1</code> to <code>f24</code>
+              <code>capslock</code> <code>printscreen</code> <code>scrolllock</code> <code>pause</code> <code>numlock</code> <code>menu</code> <code>kp0</code> to <code>kp9</code> <code>kpenter</code> <code>kpplus</code> <code>kpminus</code> <code>kpasterisk</code> <code>kpslash</code> <code>kpdot</code>
+              <code>minus</code> <code>equal</code> <code>lbracket</code> <code>rbracket</code> <code>backslash</code> <code>semicolon</code> <code>quote</code> <code>grave</code> <code>comma</code> <code>period</code> <code>slash</code>,
+              any single letter or digit, or one of <code>- = [ ] \ ; ' ` , . /</code>
+            </p>
+            <p class="keys">
+              Shifted symbols work too and send Shift for you, by name or as the character itself:
+              <code>tilde</code> ~ <code>exclaim</code> ! <code>at</code> @ <code>hash</code> # <code>dollar</code> $ <code>percent</code> % <code>caret</code> ^ <code>ampersand</code> &amp; <code>asterisk</code> * <code>lparen</code> ( <code>rparen</code> ) <code>underscore</code> _ <code>plus</code> + <code>lbrace</code> { <code>rbrace</code> } <code>pipe</code> | <code>colon</code> : <code>doublequote</code> " <code>lt</code> &lt; <code>gt</code> &gt; <code>question</code> ?
+            </p>
+            <p class="keys">A single character such as <code>~</code> or <code>!</code> works directly in <code>KEY</code> and in bindings. The one exception is <code>+</code>, which joins keys in a combo, so write <code>plus</code>.</p>
+          </div>
+        </div>
+      </section>
     </section>
 
-    <section class="settings" aria-labelledby="settingsTitle">
-      <div class="section-head">
-        <h2 id="settingsTitle">Settings</h2>
-        <span class="saved-note" id="settingsSaved" hidden>Saved</span>
-      </div>
-      <div class="field">
-        <label for="timeoutInput">Screen off after</label>
-        <div class="field-row">
-          <input type="number" id="timeoutInput" min="0" max="3600" step="1" value="30" disabled>
-          <span class="unit">seconds, 0 keeps it on</span>
+    <section class="binds-ws" id="panelBinds" role="tabpanel" aria-labelledby="tabBinds" hidden>
+      <div class="bind-main">
+        <div class="bind-head">
+          <div class="bind-head-text">
+            <div class="bind-title-row">
+              <h2 id="bindTitle">Current bindings on the device</h2>
+              <span class="tag tag-active" id="bindActiveTag" hidden>active preset</span>
+              <span class="binds-dirty" id="bindsDirty" title="Unsaved changes" hidden></span>
+            </div>
+            <p class="bind-sub" id="bindTargetNote">What the gamepad sends in Bind mode right now.</p>
+          </div>
+          <div class="bind-save">
+            <span class="saved-note" id="bindsSaved" role="status" hidden>Saved</span>
+            <button type="button" class="btn btn-primary" id="saveBindsBtn" disabled>Save bindings</button>
+          </div>
+        </div>
+
+        <div class="pad-wrap">
+          <div class="pad-face" id="padFace" role="radiogroup" aria-label="Gamepad buttons">
+            <div class="dpad">
+              <button type="button" class="pk pk-up" role="radio" aria-checked="true" data-button="up"><span class="pk-name">Up</span><span class="pk-keys"></span><span class="pk-mode"></span><span class="pk-on" hidden>on</span></button>
+              <button type="button" class="pk pk-left" role="radio" aria-checked="false" tabindex="-1" data-button="left"><span class="pk-name">Left</span><span class="pk-keys"></span><span class="pk-mode"></span><span class="pk-on" hidden>on</span></button>
+              <span class="dpad-hub" aria-hidden="true"></span>
+              <button type="button" class="pk pk-right" role="radio" aria-checked="false" tabindex="-1" data-button="right"><span class="pk-name">Right</span><span class="pk-keys"></span><span class="pk-mode"></span><span class="pk-on" hidden>on</span></button>
+              <button type="button" class="pk pk-down" role="radio" aria-checked="false" tabindex="-1" data-button="down"><span class="pk-name">Down</span><span class="pk-keys"></span><span class="pk-mode"></span><span class="pk-on" hidden>on</span></button>
+            </div>
+            <div class="pad-sys">
+              <div class="sys" title="Reserved, cannot be bound"><span class="sys-cap" aria-hidden="true"></span><span>Select</span><small>menu</small></div>
+              <div class="sys" title="Reserved, cannot be bound"><span class="sys-cap" aria-hidden="true"></span><span>Start</span><small>setup/presets</small></div>
+            </div>
+            <div class="ab">
+              <button type="button" class="pk pk-round pk-a" role="radio" aria-checked="false" tabindex="-1" data-button="a"><span class="pk-name">A</span><span class="pk-keys"></span><span class="pk-mode"></span><span class="pk-on" hidden>on</span></button>
+              <button type="button" class="pk pk-round pk-b" role="radio" aria-checked="false" tabindex="-1" data-button="b"><span class="pk-name">B</span><span class="pk-keys"></span><span class="pk-mode"></span><span class="pk-on" hidden>on</span></button>
+            </div>
+          </div>
+        </div>
+        <p class="bind-hint">Select switches mode on the device. Hold Select for the menu, hold Start in Bind mode for presets.</p>
+        <p class="bind-error" id="bindError" role="alert" hidden></p>
+
+        <div class="bind-lower">
+          <section class="detail" id="bindDetail" aria-labelledby="bindDetailTitle">
+            <div class="detail-head">
+              <h3 id="bindDetailTitle">Up button</h3>
+              <span class="detail-state" id="bindDetailState" hidden></span>
+              <button type="button" class="btn btn-sm" id="unbindBtn" disabled>Unbind</button>
+            </div>
+
+            <fieldset>
+              <legend>Type</legend>
+              <div class="radio-seg">
+                <label><input type="radio" name="bindType" value="keys" id="typeKeys" checked disabled><span>Key combo</span></label>
+                <label><input type="radio" name="bindType" value="macro" id="typeMacro" disabled><span>Run macro</span></label>
+              </div>
+            </fieldset>
+
+            <div id="keysBlock">
+              <label class="detail-label" for="bindKeysInput">Keys</label>
+              <input class="bind-keys" id="bindKeysInput" type="text" placeholder="unbound, for example ctrl+c" autocomplete="off" autocapitalize="off" spellcheck="false" disabled>
+              <div class="chips" role="group" aria-label="Quick insert">
+                <span>Add</span>
+                <button type="button" class="chip" data-mod="ctrl" aria-pressed="false" disabled>ctrl</button>
+                <button type="button" class="chip" data-mod="shift" aria-pressed="false" disabled>shift</button>
+                <button type="button" class="chip" data-mod="alt" aria-pressed="false" disabled>alt</button>
+                <button type="button" class="chip" data-mod="gui" aria-pressed="false" disabled>gui</button>
+                <button type="button" class="chip chip-text" id="symbolsToggle" aria-expanded="false" aria-controls="symbolsList" disabled>Symbols</button>
+              </div>
+              <div class="symbols" id="symbolsList" role="group" aria-label="Shifted symbols" hidden></div>
+              <p class="detail-help">Same syntax as <code>KEY</code>: join keys with + or spaces, like <code>ctrl+shift+t</code>. Shifted symbols such as <code>~</code> or <code>!</code> send Shift for you; write <code>plus</code> for +. See <a href="#keyNames" id="keyNamesLink">key names</a>.</p>
+            </div>
+
+            <div id="macroBlock" hidden>
+              <label class="detail-label" for="bindScriptInput">Macro</label>
+              <select class="bind-script" id="bindScriptInput" disabled></select>
+              <p class="detail-help">One press runs the macro, the next press stops it. The other buttons keep sending their keys while it runs.</p>
+            </div>
+
+            <fieldset id="behaviorBlock">
+              <legend>Behavior</legend>
+              <div class="radio-seg">
+                <label><input type="radio" name="bindBehavior" value="normal" checked disabled><span>Hold</span></label>
+                <label><input type="radio" name="bindBehavior" value="burst" disabled><span>Burst</span></label>
+                <label><input type="radio" name="bindBehavior" value="toggle" disabled><span>Toggle</span></label>
+                <label><input type="radio" name="bindBehavior" value="toggleburst" disabled><span>Toggle burst</span></label>
+              </div>
+              <p class="detail-help" id="behaviorNote"></p>
+              <div class="interval-row" id="intervalRow" hidden>
+                <label class="unit" for="bindIntervalInput">Interval</label>
+                <input type="number" id="bindIntervalInput" min="20" max="5000" step="1" disabled>
+                <span class="unit">ms between taps</span>
+              </div>
+            </fieldset>
+          </section>
+
+          <table class="summary">
+            <caption>All buttons</caption>
+            <colgroup><col style="width: 68px"><col><col style="width: 42%"></colgroup>
+            <thead><tr><th scope="col">Button</th><th scope="col">Binding</th><th scope="col">Behavior</th></tr></thead>
+            <tbody id="bindSummary"></tbody>
+          </table>
         </div>
       </div>
-      <div class="field">
-        <label for="brightnessInput">Brightness <span class="mono" id="brightnessValue">128</span></label>
-        <input type="range" id="brightnessInput" min="5" max="255" step="1" value="128" disabled>
-      </div>
-      <div class="field">
-        <label for="transportInput">Keys go out over</label>
-        <div class="field-row">
-          <select id="transportInput" disabled>
-            <option value="usb">USB cable</option>
-            <option value="ble">Bluetooth</option>
-          </select>
-          <span class="unit">hold Start on the device to switch too</span>
+
+      <aside class="presets-panel" aria-labelledby="presetsTitle">
+        <div class="section-head">
+          <h2 id="presetsTitle">Presets <span class="count" id="presetCount"></span></h2>
         </div>
-      </div>
+        <div class="preset-tools">
+          <button type="button" class="btn btn-sm" id="presetSaveBtn" disabled>Save current as preset</button>
+          <div class="rename preset-new" id="presetNew" hidden>
+            <label class="sr-only" for="presetNameInput">Preset name</label>
+            <input class="rename-input" id="presetNameInput" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Preset name">
+            <p class="rename-hint" id="presetNewHint" hidden></p>
+            <div class="rename-actions">
+              <button type="button" class="btn btn-sm btn-primary" id="presetNewSave">Save preset</button>
+              <button type="button" class="btn btn-sm" id="presetNewCancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <ul class="scripts" id="presetList" aria-label="Edit target"></ul>
+        <div class="confirm-strip" id="bindTargetConfirm" hidden>
+          <span id="bindTargetConfirmText"></span>
+          <button type="button" class="btn btn-sm btn-danger" id="bindTargetYes">Switch</button>
+          <button type="button" class="btn btn-sm" id="bindTargetNo">Cancel</button>
+        </div>
+        <p class="empty" id="presetsOffline">Connect the device to see its presets.</p>
+        <p class="empty" id="presetsEmpty" hidden>No presets yet. Save the current bindings as one.</p>
+      </aside>
     </section>
-  </aside>
-</main>
+
+    <section class="settings-ws" id="panelSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
+      <section class="panel" aria-labelledby="screenTitle">
+        <div class="section-head">
+          <h2 id="screenTitle">Screen</h2>
+          <span class="saved-note" id="settingsSaved" role="status" hidden>Saved</span>
+        </div>
+        <div class="field">
+          <label for="timeoutInput">Screen off after</label>
+          <div class="field-row">
+            <input type="number" id="timeoutInput" min="0" max="3600" step="1" value="30" disabled>
+            <span class="unit">seconds, 0 keeps it on</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="brightnessInput">Brightness <span class="mono" id="brightnessValue">128</span></label>
+          <input type="range" id="brightnessInput" min="5" max="255" step="1" value="128" disabled>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="outputTitle">
+        <div class="section-head">
+          <h2 id="outputTitle">Output</h2>
+        </div>
+        <div class="field">
+          <label for="transportInput">Keys go out over</label>
+          <div class="field-row">
+            <select id="transportInput" disabled>
+              <option value="usb">USB cable</option>
+              <option value="ble">Bluetooth</option>
+            </select>
+          </div>
+          <span class="unit">Also in the device menu: hold Select. Over Bluetooth the device pairs as "Core Macro".</span>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="deviceTitle">
+        <div class="section-head">
+          <h2 id="deviceTitle">Device</h2>
+          <button type="button" class="btn btn-sm" id="infoRefresh" disabled>Refresh</button>
+        </div>
+        <p class="panel-intro" id="infoOffline">Connect the device to see its details.</p>
+        <dl class="info-list" id="infoList" hidden>
+          <dt>Name</dt><dd id="infoName"></dd>
+          <dt>Firmware</dt><dd id="infoFw"></dd>
+          <dt>Storage</dt><dd id="infoStorage"></dd>
+          <dt>Macros</dt><dd id="infoMacros"></dd>
+          <dt>Uptime</dt><dd id="infoUptime"></dd>
+          <dt>Free memory</dt><dd id="infoHeap"></dd>
+        </dl>
+      </section>
+
+      <section class="panel wide" aria-labelledby="aboutTitle">
+        <h2 id="aboutTitle">About the controls</h2>
+        <table class="controls-table">
+          <thead><tr><th scope="col">Control</th><th scope="col">Macro mode</th><th scope="col">Bind mode</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">D-pad</th><td>Up and Down pick a macro, Left and Right jump a page</td><td>Each direction sends its binding</td></tr>
+            <tr><th scope="row">A</th><td>Runs the picked macro</td><td>Sends its binding</td></tr>
+            <tr><th scope="row">B</th><td>Stops the running macro</td><td>Sends its binding</td></tr>
+            <tr><th scope="row">Select, press</th><td>Switches to Bind mode</td><td>Switches to Macro mode</td></tr>
+            <tr><th scope="row">Select, hold</th><td colspan="2">Opens the device menu: mode, output, screen off and brightness. Up and Down pick a row, Left and Right change it, B closes.</td></tr>
+            <tr><th scope="row">Start, press</th><td>Nothing</td><td>Opens binding setup on the device</td></tr>
+            <tr><th scope="row">Start, hold</th><td>Nothing</td><td>Opens presets: A loads one, the first row saves the current bindings</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+</div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
@@ -1428,6 +2210,25 @@ const INTERVAL_MIN = 20;
 const INTERVAL_MAX = 5000;
 const INTERVAL_DEFAULT = 100;
 const BIND_HINT = 'Switch to macros to run';
+const TAB_KEY = 'core-macro.tab';
+const REF_KEY = 'core-macro.reference';
+const TABS = ['macros', 'binds', 'settings'];
+const KEY_MODES = ['normal', 'burst', 'toggle', 'toggleburst'];
+const MODE_TEXT = { normal: 'Hold', burst: 'Burst', toggle: 'Toggle', toggleburst: 'Toggle burst', macro: 'Run macro' };
+const MODE_NOTES = {
+  normal: 'Keys stay pressed while the button is held.',
+  burst: 'Keys are tapped again and again while the button is held.',
+  toggle: 'One press holds the keys, the next press releases them.',
+  toggleburst: 'One press starts tapping the keys, the next press stops.'
+};
+const MODIFIERS = ['ctrl', 'shift', 'alt', 'gui'];
+const MODIFIER_ALIASES = { ctrl: ['ctrl'], shift: ['shift'], alt: ['alt'], gui: ['gui', 'win', 'cmd', 'meta', 'super'] };
+const MODIFIER_WORDS = ['ctrl', 'rctrl', 'shift', 'rshift', 'alt', 'ralt', 'altgr', 'gui', 'win', 'cmd', 'meta', 'super', 'rgui'];
+const SYMBOLS = [
+  ['~', 'tilde'], ['!', 'exclaim'], ['@', 'at'], ['#', 'hash'], ['$', 'dollar'], ['%', 'percent'], ['^', 'caret'],
+  ['&', 'ampersand'], ['*', 'asterisk'], ['(', 'lparen'], [')', 'rparen'], ['_', 'underscore'], ['+', 'plus'],
+  ['{', 'lbrace'], ['}', 'rbrace'], ['|', 'pipe'], [':', 'colon'], ['"', 'doublequote'], ['<', 'lt'], ['>', 'gt'], ['?', 'question']
+];
 
 const EXAMPLES = [
   {
@@ -1485,7 +2286,21 @@ const bindMirrorRows = Array.from(els.dBind.querySelectorAll('.d-brow')).map(row
   mode: row.querySelector('.d-bmode')
 }));
 
-const bindRows = [];
+const padKeys = Array.from(els.padFace.querySelectorAll('.pk')).map(node => ({
+  button: node.dataset.button,
+  node,
+  keys: node.querySelector('.pk-keys'),
+  mode: node.querySelector('.pk-mode'),
+  on: node.querySelector('.pk-on')
+}));
+
+const tabButtons = Array.from(els.tabs.querySelectorAll('[role="tab"]'));
+const tabPanels = { macros: els.panelMacros, binds: els.panelBinds, settings: els.panelSettings };
+const modChips = Array.from(document.querySelectorAll('.chip[data-mod]'));
+const typeRadios = Array.from(document.querySelectorAll('input[name="bindType"]'));
+const behaviorRadios = Array.from(document.querySelectorAll('input[name="bindBehavior"]'));
+const scriptSlot = { script: els.bindScriptInput, scriptKey: '' };
+const summaryRows = [];
 
 const state = {
   connected: false,
@@ -1503,7 +2318,11 @@ const state = {
   renameError: '',
   confirmDelete: null,
   mirrorTop: 0,
-  refOpen: false,
+  refOpen: true,
+  tab: 'macros',
+  bindSel: 0,
+  keyModes: {},
+  symbolsOpen: false,
   mode: 'macro',
   binds: null,
   bindDraft: null,
@@ -1511,7 +2330,6 @@ const state = {
   bindError: '',
   presets: null,
   activePreset: '',
-  presetSel: null,
   presetRenaming: null,
   presetRenameError: '',
   presetConfirm: null,
@@ -1910,7 +2728,6 @@ function resetDeviceState() {
   state.bindError = '';
   state.presets = null;
   state.activePreset = '';
-  state.presetSel = null;
   state.presetRenaming = null;
   state.presetRenameError = '';
   state.presetConfirm = null;
@@ -2124,6 +2941,7 @@ async function saveBinds() {
   const problem = bindDraftProblem();
   if (problem) {
     state.bindError = problem;
+    selectMissingMacro();
     renderBinds();
     return;
   }
@@ -2148,12 +2966,19 @@ async function saveBinds() {
   }
 }
 
+function saveBindTarget() {
+  if (!bindsDirty()) return;
+  if (state.bindTarget) savePresetBinds();
+  else saveBinds();
+}
+
 async function savePresetBinds() {
   const name = state.bindTarget;
   if (!name || !state.connected || !state.bindDraft || bindSaving || targetLoading) return;
   const problem = bindDraftProblem();
   if (problem) {
     state.bindError = problem;
+    selectMissingMacro();
     renderBinds();
     return;
   }
@@ -2187,26 +3012,23 @@ function askBindTarget(name) {
   }
   if (bindsDirty()) {
     state.bindTargetConfirm = name;
-    renderBindTarget();
+    state.presetConfirm = null;
+    renderPresets();
     els.bindTargetYes.focus();
     return;
   }
-  switchBindTarget(name);
+  editPreset(name);
 }
 
 function cancelBindTarget() {
+  const name = state.bindTargetConfirm;
   state.bindTargetConfirm = null;
   renderBindTarget();
-  els.bindTargetInput.focus();
-}
-
-function askEditPreset(name) {
-  if (bindsDirty()) askPresetConfirm(name, 'edit');
-  else editPreset(name);
+  focusTargetRow(name === null ? state.bindTarget : name);
 }
 
 async function editPreset(name) {
-  if (await switchBindTarget(name)) els.bindTargetInput.focus();
+  if (await switchBindTarget(name)) focusTargetRow(name);
 }
 
 function useCurrentTarget() {
@@ -2271,7 +3093,6 @@ function applyPresets(msg) {
   const names = Array.isArray(msg.presets) ? msg.presets.filter(p => p && typeof p.name === 'string').map(p => p.name) : [];
   state.presets = names;
   state.activePreset = typeof msg.active === 'string' ? msg.active : '';
-  if (state.presetSel && !names.includes(state.presetSel)) state.presetSel = null;
   if (state.presetRenaming && !names.includes(state.presetRenaming)) {
     state.presetRenaming = null;
     state.presetRenameError = '';
@@ -2397,7 +3218,6 @@ async function commitPresetRename(from, to) {
     return;
   }
   if (!canUsePresets()) return;
-  const wasSel = state.presetSel === from;
   presetFollow = { from, to };
   const error = await presetRequest({ action: 'rename', from, to });
   presetFollow = null;
@@ -2407,10 +3227,10 @@ async function commitPresetRename(from, to) {
     focusRenameInput(els.presetList);
     return;
   }
-  if (wasSel) state.presetSel = to;
   state.presetRenaming = null;
   state.presetRenameError = '';
   renderPresets();
+  focusTargetRow(to);
   toast('Renamed preset to "' + to + '".', 'success');
 }
 
@@ -2804,7 +3624,7 @@ function renderTopbar() {
   els.connPill.classList.toggle('busy', state.connecting);
   let text = 'Not connected';
   if (state.connecting) text = 'Connecting';
-  else if (online) text = 'Connected' + (state.device.fw ? ' · fw ' + state.device.fw : '');
+  else if (online) text = 'Connected';
   els.connText.textContent = text;
   els.connectBtn.textContent = state.connected ? 'Disconnect' : 'Connect';
   els.connectBtn.classList.toggle('btn-primary', !state.connected);
@@ -3031,10 +3851,12 @@ function updateScriptMarks() {
       runButton.title = bind ? BIND_HINT : '';
     }
   }
+  renderTabMarks();
 }
 
 function renderEditor() {
   const o = state.open;
+  renderTabMarks();
   els.editorEmpty.hidden = !!o;
   els.editorBody.hidden = !o;
   if (!o) return;
@@ -3148,126 +3970,358 @@ function renderSettings() {
   els.brightnessValue.textContent = String(state.config.brightness);
   els.transportInput.disabled = !online;
   els.transportInput.value = state.config.transport;
+  const ble = state.config.transport === 'ble';
+  els.outSeg.classList.toggle('off', !online);
+  els.outUsb.disabled = !online;
+  els.outBle.disabled = !online;
+  els.outUsb.classList.toggle('on', online && !ble);
+  els.outBle.classList.toggle('on', online && ble);
+  els.outUsb.setAttribute('aria-pressed', String(online && !ble));
+  els.outBle.setAttribute('aria-pressed', String(online && ble));
 }
 
-function buildBindRows() {
-  BIND_BUTTONS.forEach((button, i) => {
-    const row = el('div', 'bind-row');
-    const inputId = 'bindKeys-' + button;
-    const label = el('label', 'bind-label', BIND_LABELS[button]);
-    label.htmlFor = inputId;
-    const keys = el('input', 'bind-keys');
-    keys.type = 'text';
-    keys.id = inputId;
-    keys.placeholder = 'unbound';
-    keys.autocomplete = 'off';
-    keys.spellcheck = false;
-    keys.disabled = true;
-    const scriptId = 'bindScript-' + button;
-    const script = el('select', 'bind-script');
-    script.id = scriptId;
-    script.setAttribute('aria-label', BIND_LABELS[button] + ' macro');
-    script.disabled = true;
-    script.hidden = true;
-    const mode = el('select', 'bind-mode');
-    mode.setAttribute('aria-label', BIND_LABELS[button] + ' behavior');
-    for (const [value, text] of BIND_MODES) mode.appendChild(new Option(text, value));
-    mode.disabled = true;
-    const intervalWrap = el('div', 'bind-interval');
-    const interval = el('input');
-    interval.type = 'number';
-    interval.min = String(INTERVAL_MIN);
-    interval.max = String(INTERVAL_MAX);
-    interval.step = '1';
-    interval.setAttribute('aria-label', BIND_LABELS[button] + ' burst interval');
-    interval.disabled = true;
-    intervalWrap.append(interval, el('span', 'unit', 'ms between taps'));
-    intervalWrap.hidden = true;
-    row.append(label, keys, script, mode, intervalWrap);
-    els.bindRows.appendChild(row);
-    bindRows.push({ button, row, label, inputId, scriptId, keys, script, scriptKey: '', mode, interval, intervalWrap });
-    const draft = () => (state.bindDraft ? state.bindDraft[i] : null);
-    keys.addEventListener('input', () => {
-      const d = draft();
-      if (!d) return;
-      d.keys = keys.value;
-      renderBindMarks();
-    });
-    mode.addEventListener('change', () => {
-      const d = draft();
-      if (!d) return;
-      d.mode = mode.value;
-      renderBinds();
-    });
-    script.addEventListener('change', () => {
-      const d = draft();
-      if (!d) return;
-      d.script = script.value;
-      renderBinds();
-    });
-    interval.addEventListener('change', () => {
-      const d = draft();
-      if (!d) return;
-      d.interval = clampNumber(interval.value, INTERVAL_MIN, INTERVAL_MAX, d.interval);
-      interval.value = String(d.interval);
-      renderBindMarks();
-    });
+function setTransport(value) {
+  const transport = value === 'ble' ? 'ble' : 'usb';
+  if (!state.connected || transport === state.config.transport) {
+    renderSettings();
+    return;
+  }
+  applyConfig({ transport });
+}
+
+function savedTab() {
+  try {
+    const tab = localStorage.getItem(TAB_KEY);
+    return TABS.includes(tab) ? tab : 'macros';
+  } catch (err) {
+    return 'macros';
+  }
+}
+
+function showTab(tab, focus) {
+  if (!TABS.includes(tab)) tab = 'macros';
+  state.tab = tab;
+  for (const node of tabButtons) {
+    const on = node.dataset.tab === tab;
+    node.setAttribute('aria-selected', String(on));
+    node.tabIndex = on ? 0 : -1;
+    if (on && focus) node.focus();
+  }
+  for (const key of TABS) tabPanels[key].hidden = key !== tab;
+  try {
+    localStorage.setItem(TAB_KEY, tab);
+  } catch (err) {}
+  if (tab === 'settings' && state.connected && !state.connecting) loadInfo();
+}
+
+function savedRefOpen() {
+  try {
+    const value = localStorage.getItem(REF_KEY);
+    if (value === '1') return true;
+    if (value === '0') return false;
+  } catch (err) {}
+  return window.matchMedia('(min-width: 1280px)').matches;
+}
+
+function setRefOpen(open, remember) {
+  state.refOpen = open;
+  els.ref.classList.toggle('open', open);
+  els.ref.classList.toggle('closed', !open);
+  els.panelMacros.classList.toggle('ref-closed', !open);
+  els.refToggle.setAttribute('aria-expanded', String(open));
+  els.refToggle.textContent = open ? 'Hide' : 'Show reference';
+  if (!remember) return;
+  try {
+    localStorage.setItem(REF_KEY, open ? '1' : '0');
+  } catch (err) {}
+}
+
+function showKeyNames() {
+  showTab('macros');
+  setRefOpen(true, true);
+  const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  els.keyNames.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
+  els.keyNames.focus({ preventScroll: true });
+}
+
+function renderTabMarks() {
+  els.tabDotMacros.hidden = !isDirty();
+  els.tabDotBinds.hidden = !bindsDirty();
+}
+
+function bindReady() {
+  return state.connected && !state.connecting && !!state.bindDraft && !bindSaving && !targetLoading;
+}
+
+function selectedBind() {
+  return state.bindDraft ? state.bindDraft[state.bindSel] : null;
+}
+
+function shownBinds() {
+  return state.bindDraft || state.binds || defaultBinds();
+}
+
+function liveBinds() {
+  return isBindMode() && !state.bindTarget;
+}
+
+function selectBind(index, focus) {
+  if (index < 0 || index >= BIND_BUTTONS.length) return;
+  if (state.bindSel !== index) {
+    state.bindSel = index;
+    renderBinds();
+  }
+  if (focus) {
+    const key = padKeys.find(k => k.button === BIND_BUTTONS[index]);
+    if (key && document.activeElement !== key.node) key.node.focus();
+  }
+}
+
+function selectMissingMacro() {
+  const index = state.bindDraft ? state.bindDraft.findIndex(b => isMacroBind(b) && !b.script) : -1;
+  if (index >= 0) state.bindSel = index;
+}
+
+function isBurstMode(mode) {
+  return mode === 'burst' || mode === 'toggleburst';
+}
+
+function bindLabel(b) {
+  const text = bindText(b);
+  if (text) return text;
+  return isMacroBind(b) ? 'pick a macro' : 'unbound';
+}
+
+function modeShort(b) {
+  if (isMacroBind(b)) return 'macro';
+  if (b.mode === 'burst') return 'burst ' + b.interval + 'ms';
+  return MODE_TEXT[b.mode].toLowerCase();
+}
+
+function modeSentence(b) {
+  if (isMacroBind(b)) return 'Macro';
+  if (isBurstMode(b.mode)) return MODE_TEXT[b.mode] + ', ' + b.interval + ' ms';
+  return MODE_TEXT[b.mode];
+}
+
+function isToggledOn(b) {
+  return (isMacroBind(b) || b.mode === 'toggle' || b.mode === 'toggleburst') && padToggled(b.button);
+}
+
+function comboTokens(text) {
+  return text.split(/[+\s]+/).filter(Boolean);
+}
+
+function isModifierToken(token) {
+  return MODIFIER_WORDS.includes(token.toLowerCase());
+}
+
+function hasModifier(tokens, mod) {
+  const names = MODIFIER_ALIASES[mod];
+  return tokens.some(t => names.includes(t.toLowerCase()));
+}
+
+function setDraftKeys(keys) {
+  const d = selectedBind();
+  if (!d) return;
+  d.keys = keys;
+  els.bindKeysInput.value = keys;
+  renderBinds();
+}
+
+function toggleModifier(mod) {
+  const d = selectedBind();
+  if (!d || !bindReady()) return;
+  const tokens = comboTokens(d.keys);
+  const names = MODIFIER_ALIASES[mod];
+  let next;
+  if (hasModifier(tokens, mod)) {
+    next = tokens.filter(t => !names.includes(t.toLowerCase()));
+  } else {
+    next = tokens.filter(isModifierToken).concat(mod, tokens.filter(t => !isModifierToken(t)));
+  }
+  setDraftKeys(next.join('+'));
+}
+
+function setKeyToken(token) {
+  const d = selectedBind();
+  if (!d || !bindReady()) return;
+  const mods = comboTokens(d.keys).filter(isModifierToken);
+  setDraftKeys(mods.concat(token).join('+'));
+}
+
+function setBindType(type) {
+  const d = selectedBind();
+  if (!d || !bindReady()) return;
+  if (type === 'macro') {
+    if (!isMacroBind(d)) {
+      state.keyModes[d.button] = d.mode;
+      d.mode = 'macro';
+    }
+  } else if (isMacroBind(d)) {
+    d.mode = state.keyModes[d.button] || 'normal';
+  }
+  renderBinds();
+}
+
+function unbindSelected() {
+  const d = selectedBind();
+  if (!d || !bindReady()) return;
+  d.keys = '';
+  d.script = '';
+  d.mode = 'normal';
+  renderBinds();
+  els.bindKeysInput.focus();
+}
+
+function buildSummary() {
+  BIND_BUTTONS.forEach((name, i) => {
+    const tr = el('tr');
+    const first = el('td');
+    const pick = el('button', 'sum-btn', BIND_LABELS[name]);
+    pick.type = 'button';
+    first.appendChild(pick);
+    const keysCell = el('td');
+    const keys = el('span', 'sum-cell sum-keys');
+    keysCell.appendChild(keys);
+    const modeCell = el('td');
+    const mode = el('span', 'sum-cell sum-mode');
+    modeCell.appendChild(mode);
+    tr.append(first, keysCell, modeCell);
+    tr.addEventListener('click', () => selectBind(i, false));
+    els.bindSummary.appendChild(tr);
+    summaryRows.push({ tr, pick, keys, mode });
   });
+}
+
+function buildSymbols() {
+  for (const [char, name] of SYMBOLS) {
+    const node = el('button', 'sym');
+    node.type = 'button';
+    node.appendChild(el('b', '', char));
+    node.appendChild(el('span', '', name));
+    node.setAttribute('aria-label', name + ' ' + char);
+    node.addEventListener('click', () => {
+      setKeyToken(char === '+' ? 'plus' : char);
+      state.symbolsOpen = false;
+      renderBinds();
+      els.bindKeysInput.focus();
+    });
+    els.symbolsList.appendChild(node);
+  }
 }
 
 function renderBinds() {
-  const online = state.connected && !state.connecting;
-  const draft = state.bindDraft;
-  const ready = online && !!draft && !bindSaving && !targetLoading;
-  bindRows.forEach((slot, i) => {
-    const d = draft ? draft[i] : null;
-    const macro = isMacroBind(d);
-    slot.keys.disabled = !ready;
-    slot.script.disabled = !ready;
-    slot.mode.disabled = !ready;
-    slot.interval.disabled = !ready;
-    slot.keys.hidden = macro;
-    slot.script.hidden = !macro;
-    slot.label.htmlFor = macro ? slot.scriptId : slot.inputId;
-    const keys = d ? d.keys : '';
-    if (slot.keys.value !== keys) slot.keys.value = keys;
-    renderBindScriptOptions(slot, d ? d.script : '');
-    slot.mode.value = d ? d.mode : 'normal';
-    const interval = String(d ? d.interval : INTERVAL_DEFAULT);
-    if (document.activeElement !== slot.interval && slot.interval.value !== interval) slot.interval.value = interval;
-    slot.intervalWrap.hidden = !d || (d.mode !== 'burst' && d.mode !== 'toggleburst');
-  });
+  renderBindDetail();
   els.bindError.textContent = state.bindError;
   els.bindError.hidden = !state.bindError;
   renderBindTarget();
   renderBindMarks();
 }
 
-function renderBindTarget() {
-  const online = state.connected && !state.connecting;
-  const select = els.bindTargetInput;
-  const names = presetNames();
-  const key = JSON.stringify(names);
-  if (targetKey !== key) {
-    targetKey = key;
-    select.textContent = '';
-    select.appendChild(new Option('Current bindings', ''));
-    for (const name of names) select.appendChild(new Option(name, name));
+function renderBindDetail() {
+  const ready = bindReady();
+  const b = shownBinds()[state.bindSel];
+  const macro = isMacroBind(b);
+  els.bindDetailTitle.textContent = BIND_LABELS[b.button] + ' button';
+  els.unbindBtn.disabled = !ready || (!macro && !b.keys.trim() && b.mode === 'normal');
+  for (const radio of typeRadios) {
+    radio.disabled = !ready;
+    radio.checked = radio.value === (macro ? 'macro' : 'keys');
   }
-  select.value = state.bindTarget;
-  select.disabled = !online || !state.binds || !state.presets || bindSaving || targetLoading;
-  const target = state.bindTarget;
+  els.keysBlock.hidden = macro;
+  els.macroBlock.hidden = !macro;
+  els.behaviorBlock.hidden = macro;
+  els.bindKeysInput.disabled = !ready;
+  if (els.bindKeysInput.value !== b.keys) els.bindKeysInput.value = b.keys;
+  renderModChips(b, ready);
+  els.symbolsToggle.disabled = !ready;
+  els.symbolsToggle.setAttribute('aria-expanded', String(state.symbolsOpen && ready));
+  els.symbolsList.hidden = !state.symbolsOpen || !ready;
+  els.bindScriptInput.disabled = !ready;
+  renderBindScriptOptions(scriptSlot, b.script);
+  const keyMode = macro ? (state.keyModes[b.button] || 'normal') : b.mode;
+  for (const radio of behaviorRadios) {
+    radio.disabled = !ready;
+    radio.checked = radio.value === keyMode;
+  }
+  els.behaviorNote.textContent = MODE_NOTES[keyMode] || '';
+  els.intervalRow.hidden = !isBurstMode(keyMode);
+  els.bindIntervalInput.disabled = !ready;
+  const interval = String(b.interval);
+  if (document.activeElement !== els.bindIntervalInput && els.bindIntervalInput.value !== interval) els.bindIntervalInput.value = interval;
+}
+
+function renderModChips(b, ready) {
+  const tokens = comboTokens(b.keys);
+  for (const chip of modChips) {
+    chip.disabled = !ready || isMacroBind(b);
+    chip.setAttribute('aria-pressed', String(hasModifier(tokens, chip.dataset.mod)));
+  }
+}
+
+function renderBindDisplay() {
+  const binds = shownBinds();
+  const live = liveBinds();
+  padKeys.forEach(key => {
+    const i = BIND_BUTTONS.indexOf(key.button);
+    const b = binds[i];
+    const text = bindText(b);
+    const selected = i === state.bindSel;
+    key.keys.textContent = bindLabel(b);
+    key.keys.classList.toggle('unbound', !text);
+    key.mode.textContent = text ? modeShort(b) : '';
+    key.on.hidden = !(live && isToggledOn(b));
+    key.node.classList.toggle('pressed', live && padPressed(key.button));
+    key.node.setAttribute('aria-checked', String(selected));
+    key.node.tabIndex = selected ? 0 : -1;
+    key.node.title = BIND_LABELS[key.button] + ': ' + bindLabel(b) + (text ? ', ' + modeSentence(b).toLowerCase() : '');
+  });
+  summaryRows.forEach((row, i) => {
+    const b = binds[i];
+    const text = bindText(b);
+    const selected = i === state.bindSel;
+    const on = live && isToggledOn(b);
+    row.tr.classList.toggle('sel', selected);
+    row.tr.classList.toggle('pressed', live && padPressed(b.button));
+    if (selected) row.pick.setAttribute('aria-current', 'true');
+    else row.pick.removeAttribute('aria-current');
+    row.keys.textContent = bindLabel(b);
+    row.keys.classList.toggle('unbound', !text);
+    row.keys.title = text;
+    row.mode.textContent = text ? (on ? 'On now' : modeSentence(b)) : '';
+    row.mode.classList.toggle('on', on);
+  });
+  const current = binds[state.bindSel];
   let note = '';
-  if (target && target === state.activePreset) note = 'Editing the active preset. Saving also updates the device\'s current bindings.';
-  else if (target) note = 'Editing preset "' + target + '". The device keeps using its current bindings until you load it.';
+  if (live && padPressed(current.button)) note = 'Pressed';
+  else if (live && isToggledOn(current)) note = 'On';
+  els.bindDetailState.textContent = note;
+  els.bindDetailState.hidden = !note;
+}
+
+function renderBindTarget() {
+  const target = state.bindTarget;
+  const active = !!target && target === state.activePreset;
+  els.bindTitle.textContent = target ? 'Preset ' + target : 'Current bindings on the device';
+  els.bindActiveTag.hidden = !active;
+  let note = 'What the gamepad sends in Bind mode. Pick a button to change it.';
+  if (!state.connected) note = 'Connect the device to edit its bindings.';
+  else if (targetLoading) note = 'Opening the preset.';
+  else if (active) note = 'This preset is active. Saving it also updates the current bindings on the device.';
+  else if (target) note = 'The device keeps using its current bindings until you load this preset.';
   els.bindTargetNote.textContent = note;
-  els.bindTargetNote.hidden = !note;
   els.saveBindsBtn.textContent = target ? 'Save preset' : 'Save bindings';
   const confirming = state.bindTargetConfirm !== null;
   els.bindTargetConfirm.hidden = !confirming;
-  if (confirming) {
-    const dest = state.bindTargetConfirm ? 'preset "' + state.bindTargetConfirm + '"' : 'the current bindings';
-    els.bindTargetConfirmText.textContent = 'Discard the unsaved binding changes and edit ' + dest + '?';
+  if (!confirming) return;
+  const dest = state.bindTargetConfirm ? 'preset "' + state.bindTargetConfirm + '"' : 'the current bindings';
+  els.bindTargetConfirmText.textContent = 'Discard the unsaved binding changes and edit ' + dest + '?';
+  const row = targetRow(state.bindTargetConfirm);
+  if (row) {
+    if (els.bindTargetConfirm.parentNode !== row) row.appendChild(els.bindTargetConfirm);
+  } else if (els.bindTargetConfirm.previousElementSibling !== els.presetList) {
+    els.presetList.after(els.bindTargetConfirm);
   }
 }
 
@@ -3298,10 +4352,10 @@ function renderBindScriptOptions(slot, script) {
 function renderBindMarks() {
   const online = state.connected && !state.connecting;
   const dirty = bindsDirty();
-  const bind = isBindMode() && !state.bindTarget;
-  for (const slot of bindRows) slot.row.classList.toggle('pressed', bind && padPressed(slot.button));
+  renderBindDisplay();
   els.bindsDirty.hidden = !dirty;
   els.saveBindsBtn.disabled = !online || !dirty || bindSaving || targetLoading;
+  renderTabMarks();
   renderPresetMarks();
 }
 
@@ -3312,6 +4366,7 @@ function renderPresets() {
   els.presetsOffline.hidden = state.connected;
   els.presetsEmpty.hidden = !state.connected || !state.presets || names.length > 0;
   els.presetCount.textContent = names.length ? String(names.length) : '';
+  if (state.connected && state.binds) list.appendChild(renderCurrentRow());
   for (const name of names) list.appendChild(renderPresetRow(name));
   renderBindTarget();
   renderPresetForm();
@@ -3326,27 +4381,41 @@ function renderPresetForm() {
   els.presetNewHint.hidden = !state.presetNewError;
 }
 
+function targetPicker(name, label) {
+  const open = el('button', 'script-open');
+  open.type = 'button';
+  open.dataset.pick = '';
+  open.appendChild(el('span', 'script-name', label));
+  open.addEventListener('click', () => askBindTarget(name));
+  return open;
+}
+
+function appendDirtyDot(node) {
+  const dirty = el('span', 'dirty-dot');
+  dirty.title = 'Unsaved changes';
+  node.appendChild(dirty);
+}
+
+function renderCurrentRow() {
+  const li = el('li', 'script');
+  li.dataset.target = '';
+  const open = targetPicker('', 'Current bindings');
+  open.appendChild(el('span', 'script-sub', 'on device'));
+  appendDirtyDot(open);
+  li.appendChild(open);
+  return li;
+}
+
 function renderPresetRow(name) {
   const li = el('li', 'script');
-  li.dataset.name = name;
-  li.classList.toggle('active', state.presetSel === name);
+  li.dataset.target = name;
   if (state.presetRenaming === name) {
     li.appendChild(renderRenameForm(name, state.presetRenameError, to => commitPresetRename(name, to), cancelPresetRename));
     return li;
   }
-  const open = el('button', 'script-open');
-  open.type = 'button';
-  if (name === state.activePreset) open.setAttribute('aria-current', 'true');
-  open.appendChild(el('span', 'script-name', name));
-  if (name === state.bindTarget) open.appendChild(el('span', 'tag', 'editing'));
-  const dirty = el('span', 'dirty-dot');
-  dirty.title = 'Unsaved changes';
-  open.appendChild(dirty);
-  open.addEventListener('click', () => {
-    state.presetSel = state.presetSel === name ? null : name;
-    renderPresets();
-    focusPresetRow(name);
-  });
+  const open = targetPicker(name, name);
+  if (name === state.activePreset) open.appendChild(el('span', 'tag tag-active', 'active'));
+  appendDirtyDot(open);
   li.appendChild(open);
   const actions = el('div', 'script-actions');
   const confirm = state.presetConfirm && state.presetConfirm.name === name ? state.presetConfirm.action : '';
@@ -3358,66 +4427,96 @@ function renderPresetRow(name) {
     } else if (confirm === 'overwrite') {
       actions.appendChild(el('span', 'confirm-text', 'Replace it with the current bindings?'));
       actions.appendChild(button('Overwrite', 'btn btn-sm btn-danger', () => savePreset(name)));
-    } else if (confirm === 'edit') {
-      actions.appendChild(el('span', 'confirm-text', 'Discard the unsaved binding changes and edit it?'));
-      actions.appendChild(button('Edit', 'btn btn-sm btn-danger', () => editPreset(name)));
     } else {
       actions.appendChild(el('span', 'confirm-text', 'Discard the unsaved binding changes and load it?'));
       actions.appendChild(button('Load', 'btn btn-sm btn-danger', () => loadPreset(name)));
     }
     actions.appendChild(button('Cancel', 'btn btn-sm', cancelPresetConfirm));
   } else {
-    const load = button('Load', 'btn btn-sm', () => askLoadPreset(name));
+    const load = button('Load to device', 'btn btn-sm', () => askLoadPreset(name));
     load.dataset.action = 'load';
-    const edit = button('Edit', 'btn btn-sm', () => askEditPreset(name));
-    edit.dataset.action = 'edit';
-    const overwrite = button('Overwrite', 'btn btn-sm', () => askPresetConfirm(name, 'overwrite'));
+    const overwrite = button('Overwrite with current', 'btn btn-sm', () => askPresetConfirm(name, 'overwrite'));
     overwrite.dataset.action = 'overwrite';
     const rename = button('Rename', 'btn btn-sm', () => startPresetRename(name));
     rename.dataset.action = 'rename';
     const remove = button('Delete', 'btn btn-sm btn-danger', () => askPresetConfirm(name, 'delete'));
     remove.dataset.action = 'delete';
-    actions.append(load, edit, overwrite, rename, remove);
+    for (const node of [load, overwrite, rename, remove]) node.setAttribute('aria-label', node.textContent + ': ' + name);
+    actions.append(load, overwrite, rename, remove);
   }
   li.appendChild(actions);
   return li;
 }
 
-function focusPresetRow(name) {
+function targetRow(name) {
   for (const li of els.presetList.children) {
-    if (li.dataset.name !== name) continue;
-    const open = li.querySelector('.script-open');
-    if (open) open.focus();
+    if (li.dataset.target === name) return li;
   }
+  return null;
+}
+
+function focusTargetRow(name) {
+  const row = targetRow(name);
+  const pick = row ? row.querySelector('[data-pick]') : null;
+  if (pick && !pick.disabled) pick.focus();
 }
 
 function renderPresetMarks() {
   const ready = canUsePresets() && !targetLoading;
   const dirty = currentDirty();
-  const targetDirty = !!state.bindTarget && bindsDirty();
+  const targetDirty = bindsDirty();
+  const pickable = state.connected && !state.connecting && !!state.binds && !!state.presets && !bindSaving && !targetLoading;
   els.presetSaveBtn.disabled = !ready || dirty;
   els.presetSaveBtn.title = dirty ? 'Save the bindings first' : '';
   els.presetNewSave.disabled = !ready;
   for (const li of els.presetList.children) {
-    const editing = li.dataset.name === state.bindTarget;
-    li.classList.toggle('selected', li.dataset.name === state.activePreset);
-    li.classList.toggle('dirty', editing && targetDirty);
+    const target = li.dataset.target === state.bindTarget;
+    li.classList.toggle('target', target);
+    li.classList.toggle('dirty', target && targetDirty);
+    const pick = li.querySelector('[data-pick]');
+    if (pick) {
+      pick.disabled = !pickable;
+      if (target) pick.setAttribute('aria-current', 'true');
+      else pick.removeAttribute('aria-current');
+    }
     for (const node of li.querySelectorAll('[data-action]')) {
       const snapshot = node.dataset.action === 'overwrite';
-      const current = node.dataset.action === 'edit' && editing;
-      node.disabled = !ready || (snapshot && dirty) || current;
-      node.title = snapshot && dirty ? 'Save the bindings first' : current ? 'Already editing this preset' : '';
+      node.disabled = !ready || (snapshot && dirty);
+      node.title = snapshot && dirty ? 'Save the bindings first' : '';
     }
   }
 }
 
-function renderInfo() {
+function formatUptime(ms) {
+  const minutes = Math.floor((ms || 0) / 60000);
+  if (minutes < 1) return 'Under a minute';
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const mins = minutes % 60;
   const parts = [];
-  if (state.connected && state.device.fw) parts.push('Firmware ' + state.device.fw);
-  if (state.connected && state.info && state.info.fsTotal > 0) {
-    parts.push(formatBytes(state.info.fsUsed) + ' of ' + formatBytes(state.info.fsTotal) + ' used');
-  }
-  els.deviceInfo.textContent = parts.join(' · ');
+  if (days) parts.push(days + ' d');
+  if (hours) parts.push(hours + ' h');
+  if (mins) parts.push(mins + ' min');
+  return parts.join(' ');
+}
+
+function renderInfo() {
+  const online = state.connected;
+  const info = online ? state.info : null;
+  const storage = info && info.fsTotal > 0 ? formatBytes(info.fsUsed) + ' of ' + formatBytes(info.fsTotal) + ' used' : '';
+  const parts = [];
+  if (online && state.device.fw) parts.push('Firmware ' + state.device.fw);
+  if (storage) parts.push(storage);
+  els.deviceInfo.textContent = parts.join(', ');
+  els.infoOffline.hidden = online;
+  els.infoList.hidden = !online;
+  els.infoRefresh.disabled = !online || state.connecting;
+  els.infoName.textContent = state.device.name || 'Unknown';
+  els.infoFw.textContent = state.device.fw || 'Unknown';
+  els.infoStorage.textContent = storage || 'Unknown';
+  els.infoMacros.textContent = String(state.scripts.length);
+  els.infoUptime.textContent = info && typeof info.uptime === 'number' ? formatUptime(info.uptime) : 'Unknown';
+  els.infoHeap.textContent = info && typeof info.freeHeap === 'number' ? formatBytes(info.freeHeap) : 'Unknown';
 }
 
 function renderExamples() {
@@ -3503,19 +4602,100 @@ function bindEvents() {
   });
 
   els.refToggle.addEventListener('click', () => {
-    state.refOpen = !state.refOpen;
-    els.ref.classList.toggle('open', state.refOpen);
-    els.refToggle.setAttribute('aria-expanded', String(state.refOpen));
-    els.refToggle.textContent = state.refOpen ? 'Hide' : 'Show';
+    setRefOpen(!state.refOpen, true);
+    els.refToggle.focus();
+  });
+
+  els.tabs.addEventListener('click', event => {
+    const tab = event.target.closest('[role="tab"]');
+    if (tab) showTab(tab.dataset.tab);
+  });
+  els.tabs.addEventListener('keydown', event => {
+    const index = TABS.indexOf(state.tab);
+    let next = -1;
+    if (event.key === 'ArrowRight') next = (index + 1) % TABS.length;
+    else if (event.key === 'ArrowLeft') next = (index + TABS.length - 1) % TABS.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = TABS.length - 1;
+    if (next < 0) return;
+    event.preventDefault();
+    showTab(TABS[next], true);
   });
 
   els.modeMacro.addEventListener('click', () => setMode('macro'));
   els.modeBind.addEventListener('click', () => setMode('bind'));
-  els.saveBindsBtn.addEventListener('click', () => {
-    if (state.bindTarget) savePresetBinds();
-    else saveBinds();
+  els.outUsb.addEventListener('click', () => setTransport('usb'));
+  els.outBle.addEventListener('click', () => setTransport('ble'));
+  els.infoRefresh.addEventListener('click', () => loadInfo());
+  els.saveBindsBtn.addEventListener('click', saveBindTarget);
+
+  for (const key of padKeys) {
+    const index = BIND_BUTTONS.indexOf(key.button);
+    key.node.addEventListener('click', () => selectBind(index, true));
+    key.node.addEventListener('focus', () => selectBind(index, false));
+  }
+  els.padFace.addEventListener('keydown', event => {
+    if (!event.target.closest('.pk')) return;
+    const count = BIND_BUTTONS.length;
+    let next = -1;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (state.bindSel + 1) % count;
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = (state.bindSel + count - 1) % count;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = count - 1;
+    if (next < 0) return;
+    event.preventDefault();
+    selectBind(next, true);
   });
-  els.bindTargetInput.addEventListener('change', () => askBindTarget(els.bindTargetInput.value));
+
+  for (const radio of typeRadios) {
+    radio.addEventListener('change', () => {
+      if (radio.checked) setBindType(radio.value);
+    });
+  }
+  for (const radio of behaviorRadios) {
+    radio.addEventListener('change', () => {
+      const d = selectedBind();
+      if (!d || !radio.checked) return;
+      d.mode = radio.value;
+      renderBinds();
+    });
+  }
+  els.bindKeysInput.addEventListener('input', () => {
+    const d = selectedBind();
+    if (!d) return;
+    d.keys = els.bindKeysInput.value;
+    renderModChips(d, bindReady());
+    renderBindMarks();
+  });
+  for (const chip of modChips) chip.addEventListener('click', () => toggleModifier(chip.dataset.mod));
+  els.symbolsToggle.addEventListener('click', () => {
+    state.symbolsOpen = !state.symbolsOpen;
+    renderBindDetail();
+    if (state.symbolsOpen && els.symbolsList.firstElementChild) els.symbolsList.firstElementChild.focus();
+  });
+  els.symbolsList.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    state.symbolsOpen = false;
+    renderBindDetail();
+    els.symbolsToggle.focus();
+  });
+  els.bindScriptInput.addEventListener('change', () => {
+    const d = selectedBind();
+    if (!d) return;
+    d.script = els.bindScriptInput.value;
+    renderBinds();
+  });
+  els.bindIntervalInput.addEventListener('change', () => {
+    const d = selectedBind();
+    if (!d) return;
+    d.interval = clampNumber(els.bindIntervalInput.value, INTERVAL_MIN, INTERVAL_MAX, d.interval);
+    els.bindIntervalInput.value = String(d.interval);
+    renderBindMarks();
+  });
+  els.unbindBtn.addEventListener('click', unbindSelected);
+
   els.bindTargetYes.addEventListener('click', () => {
     if (state.bindTargetConfirm !== null) editPreset(state.bindTargetConfirm);
   });
@@ -3542,11 +4722,9 @@ function bindEvents() {
       els.presetSaveBtn.focus();
     }
   });
-  els.keyNamesLink.addEventListener('click', () => {
-    state.refOpen = true;
-    els.ref.classList.add('open');
-    els.refToggle.setAttribute('aria-expanded', 'true');
-    els.refToggle.textContent = 'Hide';
+  els.keyNamesLink.addEventListener('click', event => {
+    event.preventDefault();
+    showKeyNames();
   });
 
   els.timeoutInput.addEventListener('change', () => {
@@ -3561,13 +4739,16 @@ function bindEvents() {
     const value = clampNumber(els.brightnessInput.value, 5, 255, state.config.brightness);
     applyConfig({ brightness: value });
   });
-  els.transportInput.addEventListener('change', () => {
-    applyConfig({ transport: els.transportInput.value === 'ble' ? 'ble' : 'usb' });
-  });
+  els.transportInput.addEventListener('change', () => setTransport(els.transportInput.value));
 
   document.addEventListener('keydown', event => {
     const mod = event.ctrlKey || event.metaKey;
     if (mod && (event.key === 's' || event.key === 'S')) {
+      if (state.tab === 'binds') {
+        event.preventDefault();
+        saveBindTarget();
+        return;
+      }
       if (!state.open) return;
       event.preventDefault();
       saveScript();
@@ -3617,7 +4798,10 @@ function init() {
     els.noSerial.hidden = false;
   }
   renderExamples();
-  buildBindRows();
+  buildSummary();
+  buildSymbols();
+  setRefOpen(savedRefOpen(), false);
+  showTab(savedTab(), false);
   bindEvents();
   fitMirror();
   renderAll();
