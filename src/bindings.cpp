@@ -348,6 +348,35 @@ bool Bindings::renamePreset(const String& from, const String& to) {
     return LittleFS.rename(presetPath(from), presetPath(to));
 }
 
+bool Bindings::readPreset(const String& name, JsonDocument& out) {
+    Bindings temp;
+    if (!presetExists(name)) return false;
+    File f = LittleFS.open(presetPath(name), FILE_READ);
+    if (!f) return false;
+    JsonDocument doc;
+    const bool ok = deserializeJson(doc, f) == DeserializationError::Ok && doc.is<JsonArray>();
+    f.close();
+    if (!ok) return false;
+    String err;
+    temp.applyJson(doc.as<JsonArrayConst>(), err);
+    temp.toJson(out["binds"].to<JsonArray>());
+    return true;
+}
+
+bool Bindings::writePreset(const String& name, JsonArrayConst list, String& err) {
+    if (!validPresetName(name)) {
+        err = "Name must be 1-32 characters: letters, digits, space, _ - . ( )";
+        return false;
+    }
+    Bindings temp;
+    if (!temp.applyJson(list, err)) return false;
+    if (!temp.savePreset(name)) {
+        err = "Could not write preset to device storage";
+        return false;
+    }
+    return true;
+}
+
 String Bindings::freePresetName() {
     for (int i = 1; i < 100; ++i) {
         String name = "Preset " + String(i);

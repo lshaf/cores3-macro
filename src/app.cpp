@@ -940,6 +940,20 @@ void App::dispatch(JsonDocument& req, uint32_t now) {
                 _presetNames = Bindings::presetNames();
                 markActivity(now);
             }
+        } else if (action == "get") {
+            if (!Bindings::readPreset(name, res)) failResponse(res, "Preset not found: " + name);
+            else res["name"] = name;
+        } else if (action == "put") {
+            String err;
+            if (!req["binds"].is<JsonArray>()) {
+                failResponse(res, "Missing binds");
+            } else if (!Bindings::writePreset(name, req["binds"].as<JsonArrayConst>(), err)) {
+                failResponse(res, err);
+            } else {
+                _presetNames = Bindings::presetNames();
+                if (_config.preset == name) loadPresetNamed(name, now);
+                markActivity(now);
+            }
         } else if (action.length() > 0) {
             failResponse(res, "Unknown preset action: " + action);
         }

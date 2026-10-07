@@ -883,6 +883,25 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 
 .saved-note { font-size: 12px; color: var(--green); }
 
+.bind-target {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.bind-target label { color: var(--muted); }
+.bind-target select { flex: 1; min-width: 0; }
+
+.bind-target-note {
+  margin: -2px 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.bind-target-confirm { margin-bottom: 10px; }
+
 .bind-rows { border-top: 1px solid var(--hair); }
 
 .bind-row {
@@ -1303,6 +1322,18 @@ input:disabled { opacity: 0.5; }
         <span class="saved-note" id="bindsSaved" hidden>Saved</span>
         <button type="button" class="btn btn-sm btn-primary" id="saveBindsBtn" disabled>Save bindings</button>
       </div>
+      <div class="bind-target">
+        <label for="bindTargetInput">Editing</label>
+        <select id="bindTargetInput" disabled>
+          <option value="">Current bindings</option>
+        </select>
+      </div>
+      <p class="bind-target-note" id="bindTargetNote" hidden></p>
+      <div class="confirm-strip bind-target-confirm" id="bindTargetConfirm" hidden>
+        <span id="bindTargetConfirmText"></span>
+        <button type="button" class="btn btn-sm btn-danger" id="bindTargetYes">Switch</button>
+        <button type="button" class="btn btn-sm" id="bindTargetNo">Cancel</button>
+      </div>
       <div class="bind-rows" id="bindRows"></div>
       <p class="bind-error" id="bindError" hidden></p>
       <p class="bind-hint">Press Select on the device to switch between macros and bindings. Combos use the same syntax as <code>KEY</code>, see <a href="#keyNames" id="keyNamesLink">Key names</a>.</p>
@@ -1485,7 +1516,10 @@ const state = {
   presetRenameError: '',
   presetConfirm: null,
   presetNewOpen: false,
-  presetNewError: ''
+  presetNewError: '',
+  bindTarget: '',
+  presetBinds: null,
+  bindTargetConfirm: null
 };
 
 const serial = {
@@ -1509,6 +1543,10 @@ let savedNoteTimer = 0;
 let bindsSavedTimer = 0;
 let bindSaving = false;
 let presetBusy = false;
+let targetLoading = false;
+let targetSeq = 0;
+let targetKey = '';
+let presetFollow = null;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -1740,16 +1778,19 @@ function handleLine(line) {
     renderMirror();
     renderBindMarks();
   } else if (msg.type === 'binds') {
-    const wasDirty = state.bindDraft && state.binds && bindsDirty();
+    const editingPreset = !!state.bindTarget;
+    const wasDirty = !editingPreset && state.bindDraft && state.binds && bindsDirty();
     state.binds = normalizeBinds(msg.binds);
-    if (!wasDirty) state.bindDraft = cloneBinds(state.binds);
+    if (!editingPreset && !wasDirty) state.bindDraft = cloneBinds(state.binds);
     if (typeof msg.mode === 'string') setModeState(msg.mode);
     renderBinds();
     renderMode();
-    toast('Bindings changed on the device', 'info');
+    if (!editingPreset) toast('Bindings changed on the device', 'info');
   } else if (msg.type === 'presets') {
     applyPresets(msg);
     renderPresets();
+    renderBinds();
+    refreshBindTarget();
   }
 }
 
@@ -1875,6 +1916,12 @@ function resetDeviceState() {
   state.presetConfirm = null;
   state.presetNewOpen = false;
   state.presetNewError = '';
+  state.bindTarget = '';
+  state.presetBinds = null;
+  state.bindTargetConfirm = null;
+  targetLoading = false;
+  targetSeq++;
+  presetFollow = null;
   lastCheckedContent = null;
 }
 
@@ -2020,7 +2067,7 @@ function cloneBinds(list) {
 }
 
 function bindsDirty() {
-  const saved = state.binds;
+  const saved = state.bindTarget ? state.presetBinds : state.binds;
   const draft = state.bindDraft;
   if (!saved || !draft) return false;
   return draft.some((d, i) => {
@@ -2028,6 +2075,15 @@ function bindsDirty() {
     const b = saved[i];
     return a.keys !== b.keys || a.script !== b.script || a.mode !== b.mode || a.interval !== b.interval;
   });
+}
+
+function currentDirty() {
+  return !state.bindTarget && bindsDirty();
+}
+
+function bindDraftProblem() {
+  const missing = state.bindDraft.find(b => isMacroBind(b) && !b.script);
+  return missing ? 'Button ' + BIND_LABELS[missing.button] + ': pick a macro' : '';
 }
 
 function setModeState(mode) {
@@ -2064,10 +2120,10 @@ async function loadBinds() {
 }
 
 async function saveBinds() {
-  if (!state.connected || !state.bindDraft || bindSaving) return;
-  const missing = state.bindDraft.find(b => isMacroBind(b) && !b.script);
-  if (missing) {
-    state.bindError = 'Button ' + BIND_LABELS[missing.button] + ': pick a macro';
+  if (!state.connected || !state.bindDraft || bindSaving || targetLoading) return;
+  const problem = bindDraftProblem();
+  if (problem) {
+    state.bindError = problem;
     renderBinds();
     return;
   }
@@ -2092,6 +2148,125 @@ async function saveBinds() {
   }
 }
 
+async function savePresetBinds() {
+  const name = state.bindTarget;
+  if (!name || !state.connected || !state.bindDraft || bindSaving || targetLoading) return;
+  const problem = bindDraftProblem();
+  if (problem) {
+    state.bindError = problem;
+    renderBinds();
+    return;
+  }
+  bindSaving = true;
+  renderBinds();
+  try {
+    const binds = state.bindDraft.map(bindPayload);
+    const reply = await request('presets', { action: 'put', name, binds });
+    if (Array.isArray(reply.presets)) applyPresets(reply);
+    if (state.bindTarget === name) {
+      state.presetBinds = normalizeBinds(binds);
+      state.bindDraft = cloneBinds(state.presetBinds);
+    }
+    state.bindError = '';
+    showBindsSaved();
+  } catch (err) {
+    state.bindError = messageFor(err);
+    toast('Could not save preset "' + name + '": ' + state.bindError, 'error');
+  } finally {
+    bindSaving = false;
+    renderBinds();
+    renderPresets();
+  }
+}
+
+function askBindTarget(name) {
+  if (name === state.bindTarget) {
+    state.bindTargetConfirm = null;
+    renderBindTarget();
+    return;
+  }
+  if (bindsDirty()) {
+    state.bindTargetConfirm = name;
+    renderBindTarget();
+    els.bindTargetYes.focus();
+    return;
+  }
+  switchBindTarget(name);
+}
+
+function cancelBindTarget() {
+  state.bindTargetConfirm = null;
+  renderBindTarget();
+  els.bindTargetInput.focus();
+}
+
+function askEditPreset(name) {
+  if (bindsDirty()) askPresetConfirm(name, 'edit');
+  else editPreset(name);
+}
+
+async function editPreset(name) {
+  if (await switchBindTarget(name)) els.bindTargetInput.focus();
+}
+
+function useCurrentTarget() {
+  state.bindTarget = '';
+  state.presetBinds = null;
+  state.bindDraft = state.binds ? cloneBinds(state.binds) : null;
+  state.bindError = '';
+}
+
+async function switchBindTarget(name) {
+  state.bindTargetConfirm = null;
+  state.presetConfirm = null;
+  const seq = ++targetSeq;
+  if (!name) {
+    targetLoading = false;
+    useCurrentTarget();
+    renderBinds();
+    renderPresets();
+    return true;
+  }
+  if (!state.connected) return false;
+  targetLoading = true;
+  renderBinds();
+  renderPresets();
+  let ok = false;
+  try {
+    const reply = await request('presets', { action: 'get', name });
+    if (seq !== targetSeq) return false;
+    if (Array.isArray(reply.presets)) applyPresets(reply);
+    state.bindTarget = name;
+    state.presetBinds = normalizeBinds(reply.binds);
+    state.bindDraft = cloneBinds(state.presetBinds);
+    state.bindError = '';
+    ok = true;
+  } catch (err) {
+    if (seq === targetSeq) toast('Could not open preset "' + name + '": ' + messageFor(err), 'error');
+  } finally {
+    if (seq === targetSeq) {
+      targetLoading = false;
+      renderBinds();
+      renderPresets();
+    }
+  }
+  return ok;
+}
+
+async function refreshBindTarget() {
+  const name = state.bindTarget;
+  if (!name || !state.connected || bindSaving || targetLoading) return;
+  try {
+    const reply = await request('presets', { action: 'get', name });
+    if (state.bindTarget !== name || bindSaving || targetLoading) return;
+    const dirty = bindsDirty();
+    state.presetBinds = normalizeBinds(reply.binds);
+    if (!dirty) state.bindDraft = cloneBinds(state.presetBinds);
+    renderBinds();
+    renderPresetMarks();
+  } catch (err) {}
+}
+
 function applyPresets(msg) {
   const names = Array.isArray(msg.presets) ? msg.presets.filter(p => p && typeof p.name === 'string').map(p => p.name) : [];
   state.presets = names;
@@ -2102,6 +2277,16 @@ function applyPresets(msg) {
     state.presetRenameError = '';
   }
   if (state.presetConfirm && !names.includes(state.presetConfirm.name)) state.presetConfirm = null;
+  if (state.bindTargetConfirm && !names.includes(state.bindTargetConfirm)) state.bindTargetConfirm = null;
+  const target = state.bindTarget;
+  if (target && !names.includes(target)) {
+    if (presetFollow && presetFollow.from === target && names.includes(presetFollow.to)) {
+      state.bindTarget = presetFollow.to;
+    } else {
+      useCurrentTarget();
+      toast('Preset "' + target + '" no longer exists. Editing the current bindings again.', 'info');
+    }
+  }
 }
 
 async function loadPresets() {
@@ -2113,6 +2298,7 @@ async function loadPresets() {
     toast('Could not read the presets: ' + messageFor(err), 'error');
   }
   renderPresets();
+  renderBinds();
 }
 
 function canUsePresets() {
@@ -2130,20 +2316,23 @@ async function presetRequest(fields) {
   } finally {
     presetBusy = false;
     renderPresets();
+    renderBinds();
   }
 }
 
 function askLoadPreset(name) {
-  if (bindsDirty()) askPresetConfirm(name, 'load');
+  if (currentDirty()) askPresetConfirm(name, 'load');
   else loadPreset(name);
 }
 
 async function loadPreset(name) {
   if (!canUsePresets()) return;
   state.presetConfirm = null;
-  if (state.binds) state.bindDraft = cloneBinds(state.binds);
-  state.bindError = '';
-  renderBinds();
+  if (!state.bindTarget) {
+    if (state.binds) state.bindDraft = cloneBinds(state.binds);
+    state.bindError = '';
+    renderBinds();
+  }
   const error = await presetRequest({ action: 'load', name });
   if (error) toast('Could not load "' + name + '": ' + error, 'error');
   else toast('Loaded preset "' + name + '".', 'success');
@@ -2155,6 +2344,7 @@ async function savePreset(name) {
   const error = await presetRequest({ action: 'save', name });
   if (error) toast('Could not save "' + name + '": ' + error, 'error');
   else toast('Saved the current bindings as "' + name + '".', 'success');
+  if (!error && state.bindTarget === name) refreshBindTarget();
   return !error;
 }
 
@@ -2208,7 +2398,9 @@ async function commitPresetRename(from, to) {
   }
   if (!canUsePresets()) return;
   const wasSel = state.presetSel === from;
+  presetFollow = { from, to };
   const error = await presetRequest({ action: 'rename', from, to });
+  presetFollow = null;
   if (error) {
     state.presetRenameError = error;
     renderPresets();
@@ -3026,7 +3218,7 @@ function buildBindRows() {
 function renderBinds() {
   const online = state.connected && !state.connecting;
   const draft = state.bindDraft;
-  const ready = online && !!draft && !bindSaving;
+  const ready = online && !!draft && !bindSaving && !targetLoading;
   bindRows.forEach((slot, i) => {
     const d = draft ? draft[i] : null;
     const macro = isMacroBind(d);
@@ -3047,7 +3239,36 @@ function renderBinds() {
   });
   els.bindError.textContent = state.bindError;
   els.bindError.hidden = !state.bindError;
+  renderBindTarget();
   renderBindMarks();
+}
+
+function renderBindTarget() {
+  const online = state.connected && !state.connecting;
+  const select = els.bindTargetInput;
+  const names = presetNames();
+  const key = JSON.stringify(names);
+  if (targetKey !== key) {
+    targetKey = key;
+    select.textContent = '';
+    select.appendChild(new Option('Current bindings', ''));
+    for (const name of names) select.appendChild(new Option(name, name));
+  }
+  select.value = state.bindTarget;
+  select.disabled = !online || !state.binds || !state.presets || bindSaving || targetLoading;
+  const target = state.bindTarget;
+  let note = '';
+  if (target && target === state.activePreset) note = 'Editing the active preset. Saving also updates the device\'s current bindings.';
+  else if (target) note = 'Editing preset "' + target + '". The device keeps using its current bindings until you load it.';
+  els.bindTargetNote.textContent = note;
+  els.bindTargetNote.hidden = !note;
+  els.saveBindsBtn.textContent = target ? 'Save preset' : 'Save bindings';
+  const confirming = state.bindTargetConfirm !== null;
+  els.bindTargetConfirm.hidden = !confirming;
+  if (confirming) {
+    const dest = state.bindTargetConfirm ? 'preset "' + state.bindTargetConfirm + '"' : 'the current bindings';
+    els.bindTargetConfirmText.textContent = 'Discard the unsaved binding changes and edit ' + dest + '?';
+  }
 }
 
 function renderBindScriptOptions(slot, script) {
@@ -3077,10 +3298,10 @@ function renderBindScriptOptions(slot, script) {
 function renderBindMarks() {
   const online = state.connected && !state.connecting;
   const dirty = bindsDirty();
-  const bind = isBindMode();
+  const bind = isBindMode() && !state.bindTarget;
   for (const slot of bindRows) slot.row.classList.toggle('pressed', bind && padPressed(slot.button));
   els.bindsDirty.hidden = !dirty;
-  els.saveBindsBtn.disabled = !online || !dirty || bindSaving;
+  els.saveBindsBtn.disabled = !online || !dirty || bindSaving || targetLoading;
   renderPresetMarks();
 }
 
@@ -3092,6 +3313,7 @@ function renderPresets() {
   els.presetsEmpty.hidden = !state.connected || !state.presets || names.length > 0;
   els.presetCount.textContent = names.length ? String(names.length) : '';
   for (const name of names) list.appendChild(renderPresetRow(name));
+  renderBindTarget();
   renderPresetForm();
   renderPresetMarks();
 }
@@ -3116,6 +3338,10 @@ function renderPresetRow(name) {
   open.type = 'button';
   if (name === state.activePreset) open.setAttribute('aria-current', 'true');
   open.appendChild(el('span', 'script-name', name));
+  if (name === state.bindTarget) open.appendChild(el('span', 'tag', 'editing'));
+  const dirty = el('span', 'dirty-dot');
+  dirty.title = 'Unsaved changes';
+  open.appendChild(dirty);
   open.addEventListener('click', () => {
     state.presetSel = state.presetSel === name ? null : name;
     renderPresets();
@@ -3132,6 +3358,9 @@ function renderPresetRow(name) {
     } else if (confirm === 'overwrite') {
       actions.appendChild(el('span', 'confirm-text', 'Replace it with the current bindings?'));
       actions.appendChild(button('Overwrite', 'btn btn-sm btn-danger', () => savePreset(name)));
+    } else if (confirm === 'edit') {
+      actions.appendChild(el('span', 'confirm-text', 'Discard the unsaved binding changes and edit it?'));
+      actions.appendChild(button('Edit', 'btn btn-sm btn-danger', () => editPreset(name)));
     } else {
       actions.appendChild(el('span', 'confirm-text', 'Discard the unsaved binding changes and load it?'));
       actions.appendChild(button('Load', 'btn btn-sm btn-danger', () => loadPreset(name)));
@@ -3140,13 +3369,15 @@ function renderPresetRow(name) {
   } else {
     const load = button('Load', 'btn btn-sm', () => askLoadPreset(name));
     load.dataset.action = 'load';
+    const edit = button('Edit', 'btn btn-sm', () => askEditPreset(name));
+    edit.dataset.action = 'edit';
     const overwrite = button('Overwrite', 'btn btn-sm', () => askPresetConfirm(name, 'overwrite'));
     overwrite.dataset.action = 'overwrite';
     const rename = button('Rename', 'btn btn-sm', () => startPresetRename(name));
     rename.dataset.action = 'rename';
     const remove = button('Delete', 'btn btn-sm btn-danger', () => askPresetConfirm(name, 'delete'));
     remove.dataset.action = 'delete';
-    actions.append(load, overwrite, rename, remove);
+    actions.append(load, edit, overwrite, rename, remove);
   }
   li.appendChild(actions);
   return li;
@@ -3161,17 +3392,21 @@ function focusPresetRow(name) {
 }
 
 function renderPresetMarks() {
-  const ready = canUsePresets();
-  const dirty = bindsDirty();
+  const ready = canUsePresets() && !targetLoading;
+  const dirty = currentDirty();
+  const targetDirty = !!state.bindTarget && bindsDirty();
   els.presetSaveBtn.disabled = !ready || dirty;
   els.presetSaveBtn.title = dirty ? 'Save the bindings first' : '';
   els.presetNewSave.disabled = !ready;
   for (const li of els.presetList.children) {
+    const editing = li.dataset.name === state.bindTarget;
     li.classList.toggle('selected', li.dataset.name === state.activePreset);
+    li.classList.toggle('dirty', editing && targetDirty);
     for (const node of li.querySelectorAll('[data-action]')) {
       const snapshot = node.dataset.action === 'overwrite';
-      node.disabled = !ready || (snapshot && dirty);
-      node.title = snapshot && dirty ? 'Save the bindings first' : '';
+      const current = node.dataset.action === 'edit' && editing;
+      node.disabled = !ready || (snapshot && dirty) || current;
+      node.title = snapshot && dirty ? 'Save the bindings first' : current ? 'Already editing this preset' : '';
     }
   }
 }
@@ -3276,7 +3511,15 @@ function bindEvents() {
 
   els.modeMacro.addEventListener('click', () => setMode('macro'));
   els.modeBind.addEventListener('click', () => setMode('bind'));
-  els.saveBindsBtn.addEventListener('click', () => saveBinds());
+  els.saveBindsBtn.addEventListener('click', () => {
+    if (state.bindTarget) savePresetBinds();
+    else saveBinds();
+  });
+  els.bindTargetInput.addEventListener('change', () => askBindTarget(els.bindTargetInput.value));
+  els.bindTargetYes.addEventListener('click', () => {
+    if (state.bindTargetConfirm !== null) editPreset(state.bindTargetConfirm);
+  });
+  els.bindTargetNo.addEventListener('click', cancelBindTarget);
   els.presetSaveBtn.addEventListener('click', openPresetForm);
   els.presetNewSave.addEventListener('click', () => savePresetAs(els.presetNameInput.value));
   els.presetNewCancel.addEventListener('click', () => {
@@ -3332,7 +3575,7 @@ function bindEvents() {
       if (!state.open) return;
       event.preventDefault();
       runOpen();
-    } else if (event.key === 'Escape' && (state.renaming || state.confirmDelete || state.presetRenaming || state.presetConfirm || state.presetNewOpen)) {
+    } else if (event.key === 'Escape' && (state.renaming || state.confirmDelete || state.presetRenaming || state.presetConfirm || state.presetNewOpen || state.bindTargetConfirm !== null)) {
       state.renaming = null;
       state.renameError = '';
       state.confirmDelete = null;
@@ -3341,6 +3584,7 @@ function bindEvents() {
       state.presetConfirm = null;
       state.presetNewOpen = false;
       state.presetNewError = '';
+      state.bindTargetConfirm = null;
       renderScripts();
       renderEditorActions();
       renderPresets();

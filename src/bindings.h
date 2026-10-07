@@ -83,6 +83,8 @@ public:
     static bool deletePreset(const String& name);
     static bool renamePreset(const String& from, const String& to);
     static String freePresetName();
+    static bool readPreset(const String& name, JsonDocument& out);
+    static bool writePreset(const String& name, JsonArrayConst list, String& err);
     void toJson(JsonArray out) const;
     const Binding& slot(int index) const { return _slots[index]; }
 
