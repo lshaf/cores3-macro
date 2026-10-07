@@ -1,0 +1,62 @@
+name: Firmware
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/packages
+            ~/.platformio/platforms
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build firmware
+        run: pio run -e m5stack-cores3
+
+      - name: Build sample filesystem image
+        run: pio run -e m5stack-cores3 -t buildfs
+
+      - name: Merge into one flashable image
+        run: |
+          BUILD=.pio/build/m5stack-cores3
+          BOOT_APP0=$(find ~/.platformio/packages -name boot_app0.bin | head -1)
+          pio pkg exec -p tool-esptoolpy -- esptool.py --chip esp32s3 merge-bin -o "$BUILD/core-macro-full.bin" \
+            --flash-mode dio --flash-size 16MB \
+            0x0 "$BUILD/bootloader.bin" \
+            0x8000 "$BUILD/partitions.bin" \
+            0xe000 "$BOOT_APP0" \
+            0x10000 "$BUILD/firmware.bin"
+          mkdir -p dist
+          cp "$BUILD/firmware.bin" "$BUILD/bootloader.bin" "$BUILD/partitions.bin" "$BUILD/littlefs.bin" "$BUILD/core-macro-full.bin" dist/
+          cp "$BOOT_APP0" dist/boot_app0.bin
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-macro-firmware
+          path: dist/
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

@@ -8,6 +8,18 @@ USB macro pad firmware for the M5Stack CoreS3 with a Faces Gamepad3 controller. 
 - M5Stack Faces Gamepad3 (I2C `0x08` on the internal bus, pins G12/G11)
 - USB-C cable to the computer that should receive the keystrokes
 
+## Downloads
+
+- Web manager, hosted: https://lshaf.github.io/cores3-macro/ (Chrome or Edge, click Connect).
+- Firmware binaries: every push to `main` builds them as a workflow artifact; tags `v*` publish a GitHub release with `core-macro-full.bin` (flash at 0x0), the separate parts, and `littlefs.bin` with the sample macros.
+
+Flash a release without PlatformIO:
+
+```sh
+pip install esptool
+esptool --chip esp32s3 write-flash 0x0 core-macro-full.bin
+```
+
 ## Build and flash
 
 PlatformIO with the pioarduino platform (Arduino core 3.2.1). The toolchain is pinned in `platformio.ini`.
