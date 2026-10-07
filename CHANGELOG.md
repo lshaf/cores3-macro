@@ -2,6 +2,18 @@
 
 Each `## [x.y.z]` section becomes the release notes when `kFirmwareVersion` in `src/config.h` is bumped to that version and pushed to `main`.
 
+## [1.2.1]
+
+### Fixes
+
+- **Complete symbol set.** Every symbol on a US keyboard can now be bound and used in scripts, including `~ ! @ # $ % ^ & * ( ) _ + { } | : " < > ?`. Type the character itself (for example `KEY ctrl+~`) or its name (`tilde`, `exclaim`, `at`, `hash`, `lbrace`, `pipe`, `question` and so on); Shift is pressed for you. Use `plus` for `+`, since `+` joins keys in a combo.
+- **One Symbols list on the device.** The bind editor's Symbols group now holds all 32 symbols in keyboard order, each shown with its character. The separate "shifted" group is gone; bindings saved from it still open on the right symbol.
+
+### Changes
+
+- `tilde` now sends a real `~`. The plain key left of `1` is `grave`, also available as `backtick`.
+- Releases now ship a single file, `core-macro-v<version>.bin`, flashed at address 0x0.
+
 ## [1.2.0]
 
 ### Highlights

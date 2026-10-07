@@ -41,7 +41,7 @@ constexpr NamedCode kKeys[] = {
     {"backspace", 0x2A},   {"bksp", 0x2A},        {"tab", 0x2B},         {"space", 0x2C},
     {"minus", 0x2D},       {"equal", 0x2E},       {"equals", 0x2E},      {"lbracket", 0x2F},
     {"rbracket", 0x30},    {"backslash", 0x31},   {"semicolon", 0x33},   {"quote", 0x34},
-    {"grave", 0x35},       {"tilde", 0x35},       {"comma", 0x36},       {"period", 0x37},
+    {"grave", 0x35},       {"backtick", 0x35},    {"comma", 0x36},       {"period", 0x37},
     {"dot", 0x37},         {"slash", 0x38},       {"capslock", 0x39},    {"caps", 0x39},
     {"f1", 0x3A},          {"f2", 0x3B},          {"f3", 0x3C},          {"f4", 0x3D},
     {"f5", 0x3E},          {"f6", 0x3F},          {"f7", 0x40},          {"f8", 0x41},
@@ -73,6 +73,31 @@ constexpr NamedCode kConsumer[] = {
     {"back", 0x224},         {"forward", 0x225},       {"refresh", 0x227},      {"search", 0x221},
     {"sleep", 0x32},
 };
+
+struct ShiftedSymbol {
+    const char* name;
+    char glyph;
+    uint8_t code;
+};
+
+constexpr ShiftedSymbol kShiftedSymbols[] = {
+    {"tilde", '~', 0x35},     {"exclaim", '!', 0x1E},     {"at", '@', 0x1F},          {"hash", '#', 0x20},
+    {"dollar", '$', 0x21},    {"percent", '%', 0x22},     {"caret", '^', 0x23},       {"ampersand", '&', 0x24},
+    {"asterisk", '*', 0x25},  {"lparen", '(', 0x26},      {"rparen", ')', 0x27},      {"underscore", '_', 0x2D},
+    {"plus", '+', 0x2E},      {"lbrace", '{', 0x2F},      {"rbrace", '}', 0x30},      {"pipe", '|', 0x31},
+    {"colon", ':', 0x33},     {"doublequote", '"', 0x34}, {"lt", '<', 0x36},          {"gt", '>', 0x37},
+    {"question", '?', 0x38},
+};
+
+bool shiftedCodeFor(const char* token, uint8_t& code) {
+    for (const ShiftedSymbol& s : kShiftedSymbols) {
+        if ((token[0] == s.glyph && token[1] == '\0') || strcasecmp(token, s.name) == 0) {
+            code = s.code;
+            return true;
+        }
+    }
+    return false;
+}
 
 bool charCode(char c, uint8_t& code) {
     c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
@@ -193,8 +218,28 @@ bool hid::parseCombo(const String& text, uint8_t* codes, uint8_t maxCodes, uint8
             return false;
         }
         uint8_t code = 0;
-        if (!keyCodeFor(token.c_str(), code)) {
+        if (keyCodeFor(token.c_str(), code)) {
+            codes[count++] = code;
+            token = "";
+            return true;
+        }
+        if (!shiftedCodeFor(token.c_str(), code)) {
             err = "Unknown key: " + token;
+            return false;
+        }
+        bool hasShift = false;
+        for (uint8_t i = 0; i < count; ++i) {
+            if (codes[i] == 0xE1 || codes[i] == 0xE5) hasShift = true;
+        }
+        if (!hasShift) {
+            if (count >= maxCodes) {
+                err = "Too many keys in one combo (max " + String(maxCodes) + ")";
+                return false;
+            }
+            codes[count++] = 0xE1;
+        }
+        if (count >= maxCodes) {
+            err = "Too many keys in one combo (max " + String(maxCodes) + ")";
             return false;
         }
         codes[count++] = code;

@@ -5,7 +5,7 @@
 
 namespace cfg {
 
-constexpr const char* kFirmwareVersion = "1.2.0";
+constexpr const char* kFirmwareVersion = "1.2.1";
 constexpr const char* kDeviceName = "core-macro";
 constexpr const char* kMacroDir = "/macros";
 constexpr const char* kMacroExt = ".txt";

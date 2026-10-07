@@ -89,6 +89,8 @@ One command per line. Commands are case-insensitive. Lines starting with `#`, `/
 
 Key names: `ctrl`, `shift`, `alt`, `gui` (`win`, `cmd`, `meta`, `super`), right-hand variants `rctrl` `rshift` `ralt` `rgui` `altgr`, `enter`, `esc`, `tab`, `space`, `backspace`, `delete`, `insert`, `home`, `end`, `pageup`, `pagedown`, `up`, `down`, `left`, `right`, `f1` to `f24`, `capslock`, `printscreen`, `scrolllock`, `pause`, `numlock`, `menu`, `kp0` to `kp9`, `kpenter`, `kpplus`, `kpminus`, `kpasterisk`, `kpslash`, `kpdot`, `minus`, `equal`, `lbracket`, `rbracket`, `backslash`, `semicolon`, `quote`, `grave`, `comma`, `period`, `slash`, and any single letter, digit or one of `- = [ ] \ ; ' ` , . /`.
 
+Shifted symbols work too and press Shift for you, either as the character or by name: `~` tilde, `!` exclaim, `@` at, `#` hash, `$` dollar, `%` percent, `^` caret, `&` ampersand, `*` asterisk, `(` lparen, `)` rparen, `_` underscore, `+` plus, `{` lbrace, `}` rbrace, `|` pipe, `:` colon, `"` doublequote, `<` lt, `>` gt, `?` question. Write `plus` rather than `+`, since `+` joins keys in a combo. On the device the Symbols group lists all of them with the character shown next to each name.
+
 `STRING` uses the US keyboard layout of the host; characters that need a different layout will come out wrong.
 
 Example:

@@ -21,12 +21,12 @@ constexpr const char* kFunction[] = {"f1",  "f2",  "f3",  "f4",  "f5",  "f6",  "
 constexpr const char* kNavigation[] = {"up", "down", "left", "right", "home", "end", "pageup", "pagedown", "insert", "delete"};
 constexpr const char* kControl[] = {"space", "enter", "esc", "tab", "backspace", "capslock", "printscreen",
                                     "scrolllock", "pause", "menu", "mute", "volumeup", "volumedown"};
-constexpr const char* kSymbols[] = {"minus", "equal", "lbracket", "rbracket", "backslash", "semicolon",
-                                    "quote", "grave", "comma", "period", "slash"};
-constexpr const char* kShifted[] = {"shift+1", "shift+2", "shift+3", "shift+4", "shift+5", "shift+6", "shift+7",
-                                    "shift+8", "shift+9", "shift+0", "shift+minus", "shift+equal", "shift+lbracket",
-                                    "shift+rbracket", "shift+backslash", "shift+semicolon", "shift+quote", "shift+grave",
-                                    "shift+comma", "shift+period", "shift+slash"};
+constexpr const char* kSymbols[] = {"grave",     "tilde",     "exclaim",  "at",          "hash",      "dollar",
+                                    "percent",   "caret",     "ampersand", "asterisk",   "lparen",    "rparen",
+                                    "minus",     "underscore", "equal",   "plus",        "lbracket",  "lbrace",
+                                    "rbracket",  "rbrace",    "backslash", "pipe",       "semicolon", "colon",
+                                    "quote",     "doublequote", "comma",  "lt",          "period",    "gt",
+                                    "slash",     "question"};
 
 struct Glyph {
     const char* key;
@@ -34,20 +34,34 @@ struct Glyph {
 };
 
 constexpr Glyph kGlyphs[] = {
-    {"minus", "-"},          {"equal", "="},          {"lbracket", "["},       {"rbracket", "]"},
-    {"backslash", "\\"},     {"semicolon", ";"},      {"quote", "'"},          {"grave", "`"},
-    {"comma", ","},          {"period", "."},         {"slash", "/"},          {"space", "' '"},
-    {"shift+1", "!"},        {"shift+2", "@"},        {"shift+3", "#"},        {"shift+4", "$"},
-    {"shift+5", "%"},        {"shift+6", "^"},        {"shift+7", "&"},        {"shift+8", "*"},
-    {"shift+9", "("},        {"shift+0", ")"},        {"shift+minus", "_"},    {"shift+equal", "+"},
-    {"shift+lbracket", "{"}, {"shift+rbracket", "}"}, {"shift+backslash", "|"}, {"shift+semicolon", ":"},
-    {"shift+quote", "\""},   {"shift+grave", "~"},    {"shift+comma", "<"},    {"shift+period", ">"},
-    {"shift+slash", "?"},    {"kpplus", "+"},         {"kpminus", "-"},        {"kpasterisk", "*"},
-    {"kpslash", "/"},        {"kpdot", "."},
+    {"grave", "`"},        {"tilde", "~"},         {"exclaim", "!"},     {"at", "@"},
+    {"hash", "#"},         {"dollar", "$"},        {"percent", "%"},     {"caret", "^"},
+    {"ampersand", "&"},    {"asterisk", "*"},      {"lparen", "("},      {"rparen", ")"},
+    {"minus", "-"},        {"underscore", "_"},    {"equal", "="},       {"plus", "+"},
+    {"lbracket", "["},     {"lbrace", "{"},        {"rbracket", "]"},    {"rbrace", "}"},
+    {"backslash", "\\"},   {"pipe", "|"},          {"semicolon", ";"},   {"colon", ":"},
+    {"quote", "'"},        {"doublequote", "\""},  {"comma", ","},       {"lt", "<"},
+    {"period", "."},       {"gt", ">"},            {"slash", "/"},       {"question", "?"},
+    {"space", "' '"},      {"kpplus", "+"},        {"kpminus", "-"},     {"kpasterisk", "*"},
+    {"kpslash", "/"},      {"kpdot", "."},
 };
 
 constexpr const char* kNumpad[] = {"kp0", "kp1", "kp2", "kp3", "kp4", "kp5", "kp6", "kp7", "kp8", "kp9",
                                    "kpenter", "kpplus", "kpminus", "kpasterisk", "kpslash", "kpdot", "numlock"};
+
+struct LegacyShift {
+    const char* combo;
+    const char* name;
+};
+
+constexpr LegacyShift kLegacyShift[] = {
+    {"shift+1", "exclaim"},      {"shift+2", "at"},           {"shift+3", "hash"},        {"shift+4", "dollar"},
+    {"shift+5", "percent"},      {"shift+6", "caret"},        {"shift+7", "ampersand"},   {"shift+8", "asterisk"},
+    {"shift+9", "lparen"},       {"shift+0", "rparen"},       {"shift+minus", "underscore"}, {"shift+equal", "plus"},
+    {"shift+lbracket", "lbrace"}, {"shift+rbracket", "rbrace"}, {"shift+backslash", "pipe"}, {"shift+semicolon", "colon"},
+    {"shift+quote", "doublequote"}, {"shift+grave", "tilde"},  {"shift+comma", "lt"},       {"shift+period", "gt"},
+    {"shift+slash", "question"},
+};
 
 struct KeyGroup {
     const char* name;
@@ -65,7 +79,6 @@ constexpr KeyGroup kGroups[] = {
     KEY_GROUP("navigation", kNavigation),
     KEY_GROUP("control", kControl),
     KEY_GROUP("symbols", kSymbols),
-    KEY_GROUP("shifted", kShifted),
     KEY_GROUP("numpad", kNumpad),
 };
 #undef KEY_GROUP
@@ -184,12 +197,15 @@ void Bindings::split(const String& keys, int& group, int& keyIndex, int& modInde
     group = 0;
     keyIndex = 0;
     modIndex = 0;
-    for (int g = 1; g < kGroupCount; ++g) {
-        for (int i = 0; i < kGroups[g].count; ++i) {
-            if (keys.equalsIgnoreCase(kGroups[g].keys[i]) && strchr(kGroups[g].keys[i], '+') != nullptr) {
-                group = g;
-                keyIndex = i;
-                return;
+    for (const LegacyShift& legacy : kLegacyShift) {
+        if (!keys.equalsIgnoreCase(legacy.combo)) continue;
+        for (int g = 1; g < kGroupCount; ++g) {
+            for (int i = 0; i < kGroups[g].count; ++i) {
+                if (strcmp(kGroups[g].keys[i], legacy.name) == 0) {
+                    group = g;
+                    keyIndex = i;
+                    return;
+                }
             }
         }
     }
