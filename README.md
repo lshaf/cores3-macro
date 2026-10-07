@@ -11,13 +11,13 @@ USB macro pad firmware for the M5Stack CoreS3 with a Faces Gamepad3 controller. 
 ## Downloads
 
 - Web manager, hosted: https://lshaf.github.io/cores3-macro/ (Chrome or Edge, click Connect).
-- Firmware binaries: built only when a release is made. Releases are automatic: bump `kFirmwareVersion` in `src/config.h`, add a matching `## [x.y.z]` section to `CHANGELOG.md`, and push to `main`. The Release workflow builds, tags `vx.y.z` and publishes a GitHub release with those notes, `core-macro-full.bin` (flash at 0x0), the separate parts, and `littlefs.bin` with the sample macros.
+- Firmware binaries: built only when a release is made. Releases are automatic: bump `kFirmwareVersion` in `src/config.h`, add a matching `## [x.y.z]` section to `CHANGELOG.md`, and push to `main`. The Release workflow builds, tags `vx.y.z` and publishes a GitHub release with those notes and one file, `core-macro-vx.y.z.bin`, flashed at 0x0.
 
 Flash a release without PlatformIO:
 
 ```sh
 pip install esptool
-esptool --chip esp32s3 write-flash 0x0 core-macro-full.bin
+esptool --chip esp32s3 write-flash 0x0 core-macro-v1.2.0.bin
 ```
 
 ## Build and flash

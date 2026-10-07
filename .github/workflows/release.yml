@@ -57,6 +57,9 @@ jobs:
           name: core-macro-firmware
           path: dist
 
+      - name: Name the image after the version
+        run: mv dist/core-macro.bin "dist/core-macro-v${{ needs.check.outputs.version }}.bin"
+
       - name: Write release notes
         env:
           VERSION: ${{ needs.check.outputs.version }}
@@ -71,29 +74,22 @@ jobs:
             echo "No CHANGELOG.md entry for $VERSION; add a \"## [$VERSION]\" section." >&2
             exit 1
           fi
-          PREV=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          PREV=$(git tag --list 'v*' --sort=-v:refname | grep -vx "v$VERSION" | head -1)
           {
             cat notes-body.md
             echo
             echo "## Install"
             echo
-            echo "Flash the whole image (bootloader, partitions and app) with esptool:"
+            echo "One file, flashed at address 0x0. It contains the bootloader, partition table and app, so any ESP32 flasher works (esptool, ESP Web Tools, Espressif Flash Download Tool):"
             echo
             echo '```sh'
             echo 'pip install esptool'
-            echo 'esptool --chip esp32s3 write-flash 0x0 core-macro-full.bin'
+            echo "esptool --chip esp32s3 write-flash 0x0 core-macro-v$VERSION.bin"
             echo '```'
             echo
-            echo "Updating from an earlier version keeps your macros, bindings and presets. To load the sample macros on a fresh device, also flash \`littlefs.bin\` at its partition offset (\`pio run -t uploadfs\` does this for you)."
+            echo "Updating from an earlier version keeps your macros, bindings and presets."
             echo
             echo "Open the web manager at https://${REPO%%/*}.github.io/${REPO#*/}/ in Chrome or Edge and click Connect."
-            echo
-            echo "| File | What it is |"
-            echo "| --- | --- |"
-            echo "| \`core-macro-full.bin\` | everything merged, flash at 0x0 |"
-            echo "| \`firmware.bin\` | app only, flash at 0x10000 |"
-            echo "| \`bootloader.bin\`, \`partitions.bin\`, \`boot_app0.bin\` | parts at 0x0, 0x8000, 0xe000 |"
-            echo "| \`littlefs.bin\` | storage image with the sample macros |"
             if [ -n "$PREV" ]; then
               echo
               echo "**Full changes:** https://github.com/$REPO/compare/$PREV...v$VERSION"
