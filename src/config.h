@@ -32,6 +32,7 @@ constexpr uint32_t kRepeatDelayMs = 350;
 constexpr uint32_t kRepeatRateMs = 110;
 
 constexpr uint32_t kKeyTapHoldMs = 8;
+constexpr uint32_t kClickHoldMs = 30;
 constexpr uint32_t kStartHoldMs = 900;
 constexpr const char* kBleName = "Core Macro";
 constexpr uint32_t kSelectionSaveDelayMs = 2000;

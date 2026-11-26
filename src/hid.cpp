@@ -339,13 +339,9 @@ void hid::mouseRelease(uint8_t button) {
 
 void hid::mouseClick(uint8_t button) {
     Guard guard;
-    if (activeTransport == Transport::Ble) {
-        ble_hid::mousePress(button);
-        delay(cfg::kKeyTapHoldMs);
-        ble_hid::mouseRelease(button);
-        return;
-    }
-    mouse.click(button);
+    mousePress(button);
+    delay(cfg::kClickHoldMs);
+    mouseRelease(button);
 }
 
 void hid::consumerTap(uint16_t usage) {
