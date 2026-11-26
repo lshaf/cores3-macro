@@ -2,6 +2,12 @@
 
 Each `## [x.y.z]` section becomes the release notes when `kFirmwareVersion` in `src/config.h` is bumped to that version and pushed to `main`.
 
+## [1.2.2]
+
+### Fixes
+
+- **Mouse clicks register in games.** `CLICK` now holds the button for 30 ms before releasing it, over both USB and Bluetooth. Before, a USB click pressed and released the button at once, so games that read the mouse once per frame often missed it.
+
 ## [1.2.1]
 
 ### Fixes
